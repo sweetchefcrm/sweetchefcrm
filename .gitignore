@@ -42,3 +42,7 @@ next-env.d.ts
 
 # fichiers sensibles générés
 acces-crm.xlsx
+exports/
+
+# configuration locale Claude Code
+.claude/
