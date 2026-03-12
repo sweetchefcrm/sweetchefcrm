@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      Role
+  teamType  TeamType?
+  createdAt DateTime  @default(now())
+  clients   Client[]
+  ventes    Vente[]
+
+  @@map("users")
+}
+
+model Client {
+  id           String   @id @default(uuid())
+  codeClient   String   @unique
+  nom          String
+  codePostal   String?  @map("ville")
+  telephone    String?
+  commercialId String
+  commercial   User     @relation(fields: [commercialId], references: [id])
+  actif            Boolean  @default(true)
+  categorieStatut  String?
+  categorieType    String?
+  etagere          Boolean  @default(false)
+  dateCreation DateTime @default(now())
+  ventes       Vente[]
+  prospects    Prospect[]
+
+  @@map("clients")
+}
+
+model Vente {
+  id           String   @id @default(uuid())
+  clientId     String
+  commercialId String
+  montant      Decimal  @db.Decimal(10, 2)
+  dateVente    DateTime
+  mois         Int
+  annee        Int
+  createdAt    DateTime @default(now())
+  client       Client   @relation(fields: [clientId], references: [id])
+  commercial   User     @relation(fields: [commercialId], references: [id])
+
+  @@unique([clientId, dateVente, montant])
+  @@map("ventes")
+}
+
+model Prospect {
+  id           String   @id @default(uuid())
+  nom          String
+  ville        String?
+  telephone    String?
+  email        String?
+  commercialId String
+  clientId     String?
+  converti     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  client       Client?  @relation(fields: [clientId], references: [id])
+
+  @@map("prospects")
+}
+
+model ImportLog {
+  id           String       @id @default(uuid())
+  fileName     String       @unique
+  fileDate     DateTime
+  importedAt   DateTime     @default(now())
+  status       ImportStatus
+  rowsImported Int          @default(0)
+  errorMessage String?
+
+  @@map("import_logs")
+}
+
+enum Role {
+  ADMIN
+  COMMERCIAL_PRINCIPAL
+  CHEF_TERRAIN
+  CHEF_TELEVENTE
+  COMMERCIAL_TERRAIN
+  COMMERCIAL_TELEVENTE
+  COMMERCIAL_GRAND_COMPTE
+  MERCHANDISEUR
+  AUTRES
+  DESACTIVE
+}
+
+enum TeamType {
+  TERRAIN
+  TELEVENTE
+}
+
+enum ImportStatus {
+  SUCCESS
+  ERROR
+  SKIPPED
+}

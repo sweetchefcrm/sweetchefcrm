@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(cp:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node:*)",
+      "Bash(npm run:*)",
+      "Bash(pkill:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(taskkill:*)",
+      "Bash(powershell:*)"
+    ]
+  }
+}
