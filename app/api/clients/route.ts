@@ -114,8 +114,8 @@ export async function GET(req: NextRequest) {
       if (sortByRaw === "panierMoyen") {
         diff = a.panierMoyen - b.panierMoyen;
       } else if (sortByRaw === "derniereCommande") {
-        const aTime = a.ventes[0] ? new Date(a.ventes[0].dateVente as string).getTime() : 0;
-        const bTime = b.ventes[0] ? new Date(b.ventes[0].dateVente as string).getTime() : 0;
+        const aTime = a.ventes[0] ? new Date(a.ventes[0].dateVente as unknown as string).getTime() : 0;
+        const bTime = b.ventes[0] ? new Date(b.ventes[0].dateVente as unknown as string).getTime() : 0;
         diff = aTime - bTime;
       }
       return sortOrder === "asc" ? diff : -diff;
