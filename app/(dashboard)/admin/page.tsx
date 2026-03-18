@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Header from "@/components/layout/Header";
 import ImportLogs from "@/components/admin/ImportLogs";
-import { Users, Plus, Loader2, X, Pencil } from "lucide-react";
+import { Users, Plus, Loader2, X, Pencil, RefreshCw, CheckCircle } from "lucide-react";
 import UserEditModal from "@/components/admin/UserEditModal";
 
 interface User {
@@ -31,13 +31,26 @@ const ROLES = [
 const TAB_LABELS: Record<string, string> = {
   imports: "Imports Google Drive",
   users: "Utilisateurs",
+  categorisation: "Catégorisation",
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  "stratégiques":  "bg-blue-100 text-blue-800",
+  "réguliers":     "bg-green-100 text-green-800",
+  "occasionnels":  "bg-amber-100 text-amber-800",
+  "nouveaux":      "bg-violet-100 text-violet-800",
+  "perdus":        "bg-red-100 text-red-800",
+  "prospect":      "bg-gray-100 text-gray-500",
 };
 
 export default function AdminPage() {
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"imports" | "users">("imports");
+  const [tab, setTab] = useState<"imports" | "users" | "categorisation">("imports");
+  const [recatLoading, setRecatLoading] = useState(false);
+  const [recatResult, setRecatResult] = useState<{ total: number; byCategory: Record<string, number>; prospectsCreated: number } | null>(null);
+  const [recatError, setRecatError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "COMMERCIAL_TERRAIN", teamType: "" });
   const [saving, setSaving] = useState(false);
@@ -57,6 +70,21 @@ export default function AdminPage() {
   }
 
   useEffect(() => { fetchData(); }, []);
+
+  async function handleRecategorize() {
+    setRecatLoading(true);
+    setRecatError("");
+    setRecatResult(null);
+    try {
+      const res = await fetch("/api/admin/recategorize", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) setRecatError(data.error || "Erreur");
+      else setRecatResult(data);
+    } catch {
+      setRecatError("Erreur réseau");
+    }
+    setRecatLoading(false);
+  }
 
   async function handleAddUser(e: React.FormEvent) {
     e.preventDefault();
@@ -92,7 +120,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {(["imports", "users"] as const).map((t) => (
+        {(["imports", "users", "categorisation"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -109,6 +137,77 @@ export default function AdminPage() {
 
       {tab === "imports" && (
         <ImportLogs logs={logs} onSync={fetchData} />
+      )}
+
+      {tab === "categorisation" && (
+        <div className="space-y-5 max-w-2xl">
+          {/* Explication des règles */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <h3 className="font-semibold text-gray-800">Règles de catégorisation automatique</h3>
+            <p className="text-sm text-gray-500">Les catégories sont calculées à partir des données réelles de ventes, par ordre de priorité :</p>
+            <div className="space-y-2 text-sm">
+              {[
+                { label: "Prospect", color: "bg-gray-100 text-gray-500", rule: "Aucune vente (jamais commandé) → aussi ajouté dans la liste Prospects" },
+                { label: "Perdus", color: "bg-red-100 text-red-800", rule: "Dernière commande > 6 mois" },
+                { label: "Nouveaux", color: "bg-violet-100 text-violet-800", rule: "Première commande il y a < 3 mois ET encore actif" },
+                { label: "Stratégiques", color: "bg-blue-100 text-blue-800", rule: "Top 20% du CA + commande au moins tous les 2 mois" },
+                { label: "Réguliers", color: "bg-green-100 text-green-800", rule: "Commande environ toutes les 40 jours (≥ 0,75/mois)" },
+                { label: "Occasionnels", color: "bg-amber-100 text-amber-800", rule: "Reste des clients actifs (commande irrégulière)" },
+              ].map(({ label, color, rule }) => (
+                <div key={label} className="flex items-start gap-3">
+                  <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-full whitespace-nowrap flex-shrink-0 mt-0.5 ${color}`}>{label}</span>
+                  <span className="text-gray-600">{rule}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bouton de déclenchement */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-gray-800">Lancer la recatégorisation</p>
+                <p className="text-xs text-gray-500 mt-0.5">Analyse toutes les ventes et met à jour les catégories de chaque client.</p>
+              </div>
+              <button
+                onClick={handleRecategorize}
+                disabled={recatLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-[#1E40AF] text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60"
+              >
+                {recatLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyse en cours...</>
+                  : <><RefreshCw className="w-4 h-4" /> Recatégoriser</>
+                }
+              </button>
+            </div>
+
+            {recatError && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{recatError}</p>
+            )}
+
+            {recatResult && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{recatResult.total} clients traités · {recatResult.prospectsCreated} nouveau(x) prospect(s) créé(s)</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.entries(recatResult.byCategory)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([cat, count]) => (
+                      <div key={cat} className="bg-gray-50 rounded-lg px-3 py-3 flex items-center justify-between">
+                        <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-full ${CATEGORY_COLORS[cat] ?? "bg-gray-100 text-gray-500"}`}>
+                          {cat}
+                        </span>
+                        <span className="text-lg font-bold text-gray-800 tabular-nums">{count}</span>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {tab === "users" && (

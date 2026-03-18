@@ -16,7 +16,7 @@ import {
   ChevronRight,
   Building2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Role } from "@prisma/client";
 
 // Rôles qui ont accès au dashboard global (pas les commerciaux purs)
@@ -58,10 +58,18 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [collapsed, setCollapsed] = useState(false);
+  // Cacher le rôle pour éviter que le menu disparaisse pendant le rechargement de session
+  const [cachedRole, setCachedRole] = useState<Role | undefined>(undefined);
 
-  const userRole = session?.user?.role as Role | undefined;
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role) {
+      setCachedRole(session.user.role as Role);
+    }
+  }, [status, session?.user?.role]);
+
+  const userRole = cachedRole ?? (session?.user?.role as Role | undefined);
 
   const visibleItems = navItems.filter((item) => {
     if (!item.roles) return true;

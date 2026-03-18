@@ -26,6 +26,7 @@ export interface Client {
   categorieStatut?: string | null;
   categorieType?: string | null;
   etagere: boolean;
+  panierMoyen?: number;
   commercial: { id: string; name: string; role: string };
   ventes: { dateVente: string; montant: number }[];
   _count: { ventes: number };
@@ -141,7 +142,9 @@ export default function ClientsTable({
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Type</th>
                 <SortableTh field="codePostal" label="Code Postal" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} />
                 <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Commercial</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Dernière cmd</th>
+                <SortableTh field="derniereCommande" label="Dernière cmd" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} className="whitespace-nowrap" />
+                <SortableTh field="nbCommandes" label="Nb. cmds" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} className="text-right" />
+                <SortableTh field="panierMoyen" label="Panier moy." sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} className="text-right whitespace-nowrap" />
                 <SortableTh field="etagere" label="Étagère" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} className="text-center" />
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Statut</th>
                 {canEdit && <th className="px-4 py-3" />}
@@ -150,7 +153,7 @@ export default function ClientsTable({
             <tbody className="divide-y divide-gray-100">
               {clients.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 10 : 9} className="text-center py-8 text-gray-400">
+                  <td colSpan={canEdit ? 12 : 11} className="text-center py-8 text-gray-400">
                     Aucun client trouvé
                   </td>
                 </tr>
@@ -193,6 +196,14 @@ export default function ClientsTable({
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                       {client.ventes[0]
                         ? format(new Date(client.ventes[0].dateVente), "dd MMM yyyy", { locale: fr })
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap tabular-nums">
+                      {client._count.ventes}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap tabular-nums">
+                      {client._count.ventes > 0 && client.panierMoyen != null
+                        ? `${Math.round(client.panierMoyen).toLocaleString("fr-FR")} €`
                         : "—"}
                     </td>
 

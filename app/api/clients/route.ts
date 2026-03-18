@@ -5,13 +5,15 @@ import prisma from "@/lib/prisma";
 import { getDataScope } from "@/lib/permissions";
 import { Role } from "@prisma/client";
 
-const ALLOWED_SORT_FIELDS: Record<string, string> = {
+const DB_SORT_FIELDS: Record<string, string> = {
   nom: "nom",
   codeClient: "codeClient",
   codePostal: "codePostal",
   categorieStatut: "categorieStatut",
   etagere: "etagere",
 };
+
+const COMPUTED_SORT_FIELDS = new Set(["panierMoyen", "derniereCommande"]);
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -29,17 +31,15 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "20");
   const sortByRaw = searchParams.get("sortBy") || "nom";
   const sortOrder = searchParams.get("sortOrder") === "desc" ? "desc" : "asc";
-  const sortBy = ALLOWED_SORT_FIELDS[sortByRaw] || "nom";
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const scope = getDataScope(session.user.role as Role, session.user.id);
-  const commercialFilter = scope.commercialId ? { commercialId: scope.commercialId } : {};
+  const commercialScopeFilter = scope.commercialId ? { commercialId: scope.commercialId } : {};
 
-  let where: Record<string, unknown> = { ...commercialFilter };
+  let where: Record<string, unknown> = { ...commercialScopeFilter };
 
-  // Scope par équipe pour les chefs
   if (scope.teamType) {
     where.commercial = { teamType: scope.teamType };
   }
@@ -54,11 +54,9 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  // Filtre étagère
   if (etagereFilter === "oui") where.etagere = true;
   else if (etagereFilter === "non") where.etagere = false;
 
-  // Filtres catégorie
   if (categorieStatutFilter) {
     where.categorieStatut = { contains: categorieStatutFilter, mode: "insensitive" };
   }
@@ -66,7 +64,6 @@ export async function GET(req: NextRequest) {
     where.categorieType = { contains: categorieTypeFilter, mode: "insensitive" };
   }
 
-  // Filtres métier
   switch (filter) {
     case "active_month":
       where.ventes = { some: { dateVente: { gte: startOfMonth } } };
@@ -85,18 +82,73 @@ export async function GET(req: NextRequest) {
       break;
   }
 
-  const [clients, total] = await Promise.all([
+  // Inclure toutes les ventes pour calculer le panier moyen
+  const commonInclude = {
+    commercial: { select: { id: true, name: true, role: true } },
+    ventes: {
+      select: { dateVente: true, montant: true },
+      orderBy: { dateVente: "desc" as const },
+    },
+    _count: { select: { ventes: true } },
+  };
+
+  function enrichClient(c: { ventes: { dateVente: Date; montant: unknown }[]; _count: { ventes: number }; [key: string]: unknown }) {
+    // montant est un Decimal Prisma, il faut le convertir en number
+    const totalCA = c.ventes.reduce((sum, v) => sum + Number(v.montant), 0);
+    const nbCommandes = c._count.ventes;
+    const panierMoyen = nbCommandes > 0 ? totalCA / nbCommandes : 0;
+    return { ...c, panierMoyen, ventes: c.ventes.slice(0, 1) };
+  }
+
+  // Tri sur champs calculés → fetch tous + tri en mémoire + pagination manuelle
+  if (COMPUTED_SORT_FIELDS.has(sortByRaw)) {
+    const allClients = await prisma.client.findMany({
+      where,
+      include: commonInclude,
+    });
+
+    const enriched = allClients.map(enrichClient);
+
+    enriched.sort((a, b) => {
+      let diff = 0;
+      if (sortByRaw === "panierMoyen") {
+        diff = a.panierMoyen - b.panierMoyen;
+      } else if (sortByRaw === "derniereCommande") {
+        const aTime = a.ventes[0] ? new Date(a.ventes[0].dateVente as string).getTime() : 0;
+        const bTime = b.ventes[0] ? new Date(b.ventes[0].dateVente as string).getTime() : 0;
+        diff = aTime - bTime;
+      }
+      return sortOrder === "asc" ? diff : -diff;
+    });
+
+    const total = enriched.length;
+    const clients = enriched.slice((page - 1) * limit, page * limit);
+    return NextResponse.json({ clients, total, page, limit, totalPages: Math.ceil(total / limit) });
+  }
+
+  // Tri par nombre de commandes → orderBy natif Prisma
+  if (sortByRaw === "nbCommandes") {
+    const [rawClients, total] = await Promise.all([
+      prisma.client.findMany({
+        where,
+        include: commonInclude,
+        orderBy: { ventes: { _count: sortOrder } },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.client.count({ where }),
+    ]);
+    const clients = rawClients.map(enrichClient);
+    return NextResponse.json({ clients, total, page, limit, totalPages: Math.ceil(total / limit) });
+  }
+
+  // Tri standard sur champs directs
+  const sortBy = DB_SORT_FIELDS[sortByRaw] || "nom";
+
+  const [rawClients, total] = await Promise.all([
     prisma.client.findMany({
       where,
-      include: {
-        commercial: { select: { id: true, name: true, role: true } },
-        ventes: {
-          orderBy: { dateVente: "desc" },
-          take: 1,
-          select: { dateVente: true, montant: true },
-        },
-        _count: { select: { ventes: true } },
-      },
+      include: commonInclude,
       orderBy: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
@@ -104,5 +156,6 @@ export async function GET(req: NextRequest) {
     prisma.client.count({ where }),
   ]);
 
+  const clients = rawClients.map(enrichClient);
   return NextResponse.json({ clients, total, page, limit, totalPages: Math.ceil(total / limit) });
 }

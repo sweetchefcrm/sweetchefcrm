@@ -18,6 +18,9 @@ const SORT_OPTIONS = [
   { value: "codePostal", label: "Code Postal" },
   { value: "categorieStatut", label: "Catégorie" },
   { value: "etagere", label: "Étagère" },
+  { value: "derniereCommande", label: "Dernière commande" },
+  { value: "nbCommandes", label: "Nb. commandes" },
+  { value: "panierMoyen", label: "Panier moyen" },
 ];
 
 const STATUTS = [
