@@ -162,50 +162,20 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Bouton de déclenchement */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          {/* Bouton de déclenchement — désactivé temporairement */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4 opacity-50 pointer-events-none select-none">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-semibold text-gray-800">Lancer la recatégorisation</p>
-                <p className="text-xs text-gray-500 mt-0.5">Analyse toutes les ventes et met à jour les catégories de chaque client.</p>
+                <p className="text-xs text-gray-500 mt-0.5">Désactivé — les catégories sont gérées manuellement via import Excel.</p>
               </div>
               <button
-                onClick={handleRecategorize}
-                disabled={recatLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-[#1E40AF] text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                disabled
+                className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 text-sm rounded-lg cursor-not-allowed"
               >
-                {recatLoading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyse en cours...</>
-                  : <><RefreshCw className="w-4 h-4" /> Recatégoriser</>
-                }
+                <RefreshCw className="w-4 h-4" /> Recatégoriser
               </button>
             </div>
-
-            {recatError && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{recatError}</p>
-            )}
-
-            {recatResult && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{recatResult.total} clients traités · {recatResult.prospectsCreated} nouveau(x) prospect(s) créé(s)</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {Object.entries(recatResult.byCategory)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([cat, count]) => (
-                      <div key={cat} className="bg-gray-50 rounded-lg px-3 py-3 flex items-center justify-between">
-                        <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-full ${CATEGORY_COLORS[cat] ?? "bg-gray-100 text-gray-500"}`}>
-                          {cat}
-                        </span>
-                        <span className="text-lg font-bold text-gray-800 tabular-nums">{count}</span>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
