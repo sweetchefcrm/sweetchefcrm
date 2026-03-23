@@ -14,6 +14,21 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// Mapping valeurs Excel → valeurs DB
+const CAT_MAP: Record<string, string> = {
+  "clients stratégiques": "stratégiques",
+  "clients réguliers":    "réguliers",
+  "clients occasionnels": "occasionnels",
+  "nouveaux clients":     "nouveaux",
+  "clients perdus":       "perdus",
+  "prospect":             "prospect",
+};
+
+function mapCat(raw: string | null): string | null {
+  if (!raw) return null;
+  return CAT_MAP[raw.toLowerCase().trim()] ?? raw.toLowerCase().trim();
+}
+
 const SOURCE = path.join(
   "C:/Users/hamza/Desktop/Sweet chef/EXPORT MARS",
   "clients_mars_resultat1.xlsx"
@@ -72,10 +87,11 @@ async function main() {
     const nom = String(
       raw["nom du client"] ?? raw["Nom du client"] ?? raw["NOM DU CLIENT"] ?? raw["Client"] ?? raw["client"] ?? ""
     ).trim();
-    const cat = String(
+    const catRaw = String(
       raw["catégorie client"] ?? raw["Catégorie client"] ?? raw["CATEGORIE CLIENT"] ??
       raw["categorie client"] ?? raw["Categorie Client"] ?? ""
     ).trim() || null;
+    const cat = mapCat(catRaw);
     const type = String(
       raw["categorie de client"] ?? raw["Catégorie de client"] ?? raw["CATEGORIE DE CLIENT"] ??
       raw["type client"] ?? raw["Type Client"] ?? ""
