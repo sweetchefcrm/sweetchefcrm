@@ -58,49 +58,61 @@ export async function GET(req: NextRequest) {
 
   const ids = commerciaux.map((c) => c.id);
 
-  // 2. CA du mois par commercial
-  const caMoisGrouped = await prisma.vente.groupBy({
-    by: ["commercialId"],
-    where: { commercialId: { in: ids }, mois, annee },
-    _sum: { montant: true },
-  });
+  // 2. Tous les clients assignés à ces commerciaux + leurs stats (actif, total)
+  const [allClients, clientsActifsGrouped, totalClientsGrouped] = await Promise.all([
+    prisma.client.findMany({
+      where: { commercialId: { in: ids } },
+      select: { id: true, commercialId: true },
+    }),
+    prisma.client.groupBy({
+      by: ["commercialId"],
+      where: { commercialId: { in: ids }, actif: true },
+      _count: { _all: true },
+    }),
+    prisma.client.groupBy({
+      by: ["commercialId"],
+      where: { commercialId: { in: ids } },
+      _count: { _all: true },
+    }),
+  ]);
 
-  // 3. CA mois précédent par commercial
-  const caPrecGrouped = await prisma.vente.groupBy({
-    by: ["commercialId"],
-    where: { commercialId: { in: ids }, mois: prevMois, annee: prevAnnee },
-    _sum: { montant: true },
-  });
+  // Map clientId → commercialId (pour rattacher chaque vente à son commercial)
+  const clientToCommercial = new Map(allClients.map((c) => [c.id, c.commercialId]));
+  const allClientIds = allClients.map((c) => c.id);
 
-  // 4. Nombre de clients actifs par commercial
-  const clientsActifsGrouped = await prisma.client.groupBy({
-    by: ["commercialId"],
-    where: { commercialId: { in: ids }, actif: true },
-    _count: { _all: true },
-  });
-
-  // 5. Nombre total de clients par commercial
-  const totalClientsGrouped = await prisma.client.groupBy({
-    by: ["commercialId"],
-    where: { commercialId: { in: ids } },
-    _count: { _all: true },
-  });
-
-  // 6. Clients distincts ayant commandé ce mois par commercial
-  const ventesMois = await prisma.vente.findMany({
-    where: { commercialId: { in: ids }, mois, annee },
-    select: { commercialId: true, clientId: true },
-  });
+  // 3. Ventes du mois et du mois précédent via clientId (toutes ventes des clients assignés)
+  const [ventesMois, ventesPrev] = await Promise.all([
+    allClientIds.length > 0
+      ? prisma.vente.findMany({
+          where: { clientId: { in: allClientIds }, mois, annee },
+          select: { clientId: true, montant: true },
+        })
+      : Promise.resolve([]),
+    allClientIds.length > 0
+      ? prisma.vente.findMany({
+          where: { clientId: { in: allClientIds }, mois: prevMois, annee: prevAnnee },
+          select: { clientId: true, montant: true },
+        })
+      : Promise.resolve([]),
+  ]);
 
   // Build maps
   const caMoisMap = new Map<string, number>();
-  for (const v of caMoisGrouped) {
-    caMoisMap.set(v.commercialId, Number(v._sum.montant || 0));
+  const caPrecMap = new Map<string, number>();
+  const commandesMap = new Map<string, Set<string>>(); // commercialId → set de clientIds
+
+  for (const v of ventesMois) {
+    const commercialId = clientToCommercial.get(v.clientId);
+    if (!commercialId) continue;
+    caMoisMap.set(commercialId, (caMoisMap.get(commercialId) ?? 0) + Number(v.montant));
+    if (!commandesMap.has(commercialId)) commandesMap.set(commercialId, new Set());
+    commandesMap.get(commercialId)!.add(v.clientId);
   }
 
-  const caPrecMap = new Map<string, number>();
-  for (const v of caPrecGrouped) {
-    caPrecMap.set(v.commercialId, Number(v._sum.montant || 0));
+  for (const v of ventesPrev) {
+    const commercialId = clientToCommercial.get(v.clientId);
+    if (!commercialId) continue;
+    caPrecMap.set(commercialId, (caPrecMap.get(commercialId) ?? 0) + Number(v.montant));
   }
 
   const clientsActifsMap = new Map<string, number>();
@@ -111,12 +123,6 @@ export async function GET(req: NextRequest) {
   const totalClientsMap = new Map<string, number>();
   for (const c of totalClientsGrouped) {
     totalClientsMap.set(c.commercialId, c._count._all);
-  }
-
-  const commandesMap = new Map<string, Set<string>>();
-  for (const v of ventesMois) {
-    if (!commandesMap.has(v.commercialId)) commandesMap.set(v.commercialId, new Set());
-    commandesMap.get(v.commercialId)!.add(v.clientId);
   }
 
   // Assembler
