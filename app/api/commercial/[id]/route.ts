@@ -93,11 +93,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const clientIds = allClients.map((c) => c.id);
 
-  // Deux filtres distincts :
-  // - venteFilterCA  : perfs personnelles du commercial (vente.commercialId = lui)
-  // - venteFilterClients : activité des clients assignés (client.commercialId = lui, toutes ventes)
-  const venteFilterCA = { commercialId: userId };
-  const venteFilterClients = clientIds.length > 0
+  // Filtre unique : activité de tous les clients assignés à ce commercial
+  // (toutes les ventes de ses clients, quelle que soit l'attribution vendeur)
+  const venteFilter = clientIds.length > 0
     ? { clientId: { in: clientIds } }
     : { clientId: "__aucun__" };
 
@@ -113,14 +111,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ventesMoisParClient,
     statsParClient,
   ] = await Promise.all([
-    // CA mois sélectionné (perfs personnelles)
+    // CA mois sélectionné
     prisma.vente.aggregate({
-      where: { ...venteFilterCA, mois, annee },
+      where: { ...venteFilter, mois, annee },
       _sum: { montant: true },
     }),
-    // CA mois précédent (perfs personnelles)
+    // CA mois précédent
     prisma.vente.aggregate({
-      where: { ...venteFilterCA, mois: prevMonth, annee: prevYear },
+      where: { ...venteFilter, mois: prevMonth, annee: prevYear },
       _sum: { montant: true },
     }),
     // Clients actifs du commercial
@@ -137,24 +135,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     prisma.prospect.count({
       where: { commercialId: userId, converti: true, createdAt: { gte: startOfMonth } },
     }),
-    // Évolution CA — tous les mois (perfs personnelles)
+    // Évolution CA — tous les mois
     prisma.vente.groupBy({
       by: ["mois", "annee"],
-      where: venteFilterCA,
+      where: venteFilter,
       _sum: { montant: true },
       orderBy: [{ annee: "asc" }, { mois: "asc" }],
     }),
-    // Ventes du mois groupées par client (activité des clients assignés)
+    // Ventes du mois groupées par client
     prisma.vente.groupBy({
       by: ["clientId"],
-      where: { ...venteFilterClients, mois, annee },
+      where: { ...venteFilter, mois, annee },
       _sum: { montant: true },
       _count: { _all: true },
     }),
-    // Dernière commande + total par client assigné
+    // Dernière commande + total par client
     prisma.vente.groupBy({
       by: ["clientId"],
-      where: venteFilterClients,
+      where: venteFilter,
       _max: { dateVente: true },
       _sum: { montant: true },
       _count: { _all: true },
