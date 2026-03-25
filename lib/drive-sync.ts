@@ -178,12 +178,14 @@ export async function syncDriveFiles(): Promise<{
           const categorieStatut = rawStatut && String(rawStatut).toLowerCase() !== "nan" ? String(rawStatut).trim() : undefined;
           const categorieType = rawType && String(rawType).toLowerCase() !== "nan" ? String(rawType).trim() : undefined;
 
+          // Ne pas écraser le commercialId existant si le vendeur n'a pas été reconnu (= admin)
+          const vendeurReconnu = commercialId !== adminUser.id;
           const client = await prisma.client.upsert({
             where: { codeClient },
             update: {
               nom,
               actif: true,
-              commercialId,
+              ...(vendeurReconnu && { commercialId }),
               ...(categorieStatut !== undefined && { categorieStatut }),
               ...(categorieType !== undefined && { categorieType }),
             },

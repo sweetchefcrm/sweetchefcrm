@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import KPICard from "@/components/dashboard/KPICard";
@@ -97,6 +97,7 @@ export default function CommercialPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filtre, setFiltre] = useState<"tous" | "commande" | "pas_commande">("tous");
+  const autoNavRef = useRef<string>(""); // id du commercial pour lequel l'auto-nav a déjà eu lieu
 
   useEffect(() => {
     setLoading(true);
@@ -105,6 +106,32 @@ export default function CommercialPage() {
       .then(setData)
       .finally(() => setLoading(false));
   }, [id, mois, annee]);
+
+  // Auto-navigation : si le mois courant n'a pas de données, aller au dernier mois avec données
+  useEffect(() => {
+    if (!data || autoNavRef.current === id) return;
+
+    const isCurrentMonth =
+      mois === now.getMonth() + 1 && annee === now.getFullYear();
+    if (!isCurrentMonth) return;
+
+    const hasNoData =
+      data.stats.caMois === 0 && data.stats.nbCommandesMois === 0;
+    if (!hasNoData) return;
+
+    const lastWithData = [...data.evolutionTousMois]
+      .reverse()
+      .find((e) => e.ca > 0);
+
+    if (
+      lastWithData &&
+      (lastWithData.mois !== mois || lastWithData.annee !== annee)
+    ) {
+      autoNavRef.current = id;
+      setMois(lastWithData.mois);
+      setAnnee(lastWithData.annee);
+    }
+  }, [data, id, mois, annee]);
 
   function naviguerMois(delta: number) {
     let m = mois + delta;

@@ -111,7 +111,7 @@ async function main() {
         admin.id;
     }
 
-    if (!clientMap.has(codeClient)) clientMap.set(codeClient, { nom, commercialId });
+    clientMap.set(codeClient, { nom, commercialId }); // toujours mettre à jour → dernier vendeur = commercial actuel
 
     ventesRaw.push({ codeClient, commercialId, montant, dateVente });
   }
