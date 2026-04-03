@@ -15,6 +15,25 @@ interface User {
   createdAt: string;
 }
 
+interface PlanningRow {
+  displayName: string;
+  departements: string[];
+  belgique: boolean;
+  joursDispo: number;
+  nbA: number;
+  nbB: number;
+  nbNouveaux: number;
+  nbMerchTV: number;
+  nbMerchIlyasse: number;
+  joursA: number;
+  joursB: number;
+  joursNouveaux: number;
+  joursMTV: number;
+  joursMI: number;
+  totalJours: number;
+  joursLibres: number;
+}
+
 const ROLES = [
   "ADMIN",
   "COMMERCIAL_PRINCIPAL",
@@ -32,6 +51,7 @@ const TAB_LABELS: Record<string, string> = {
   imports: "Imports Google Drive",
   users: "Utilisateurs",
   categorisation: "Catégorisation",
+  planning: "Planning",
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -46,8 +66,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function AdminPage() {
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [planning, setPlanning] = useState<PlanningRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"imports" | "users" | "categorisation">("imports");
+  const [tab, setTab] = useState<"imports" | "users" | "categorisation" | "planning">("imports");
   const [recatLoading, setRecatLoading] = useState(false);
   const [recatResult, setRecatResult] = useState<{ total: number; byCategory: Record<string, number>; prospectsCreated: number } | null>(null);
   const [recatError, setRecatError] = useState("");
@@ -59,13 +80,19 @@ export default function AdminPage() {
 
   async function fetchData() {
     setLoading(true);
-    const [logsRes, usersRes] = await Promise.all([
+    const [logsRes, usersRes, planningRes] = await Promise.all([
       fetch("/api/admin/logs"),
       fetch("/api/admin/users"),
+      fetch("/api/planning"),
     ]);
-    const [logsData, usersData] = await Promise.all([logsRes.json(), usersRes.json()]);
+    const [logsData, usersData, planningData] = await Promise.all([
+      logsRes.json(),
+      usersRes.json(),
+      planningRes.json(),
+    ]);
     setLogs(logsData);
     setUsers(usersData);
+    setPlanning(Array.isArray(planningData) ? planningData : []);
     setLoading(false);
   }
 
@@ -120,7 +147,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {(["imports", "users", "categorisation"] as const).map((t) => (
+        {(["imports", "users", "categorisation", "planning"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -175,6 +202,77 @@ export default function AdminPage() {
               >
                 <RefreshCw className="w-4 h-4" /> Recatégoriser
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "planning" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                    <th className="text-left px-4 py-3 font-semibold">Commercial</th>
+                    <th className="text-center px-3 py-3 font-semibold text-blue-700">Stratégiques<br/><span className="font-normal text-xs">nb</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-blue-700">Stratégiques<br/><span className="font-normal text-xs">jours</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-green-700">Réguliers<br/><span className="font-normal text-xs">nb</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-green-700">Réguliers<br/><span className="font-normal text-xs">jours</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-violet-700">Nouveaux<br/><span className="font-normal text-xs">nb</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-violet-700">Nouveaux<br/><span className="font-normal text-xs">jours</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-gray-500">Merch TV<br/><span className="font-normal text-xs">nb</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-gray-500">Merch TV<br/><span className="font-normal text-xs">jours</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-gray-500">Merch I.<br/><span className="font-normal text-xs">nb</span></th>
+                    <th className="text-center px-3 py-3 font-semibold text-gray-500">Merch I.<br/><span className="font-normal text-xs">jours</span></th>
+                    <th className="text-center px-3 py-3 font-semibold">Jours<br/><span className="font-normal text-xs">utilisés</span></th>
+                    <th className="text-center px-3 py-3 font-semibold">Jours<br/><span className="font-normal text-xs">libres</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {planning.length === 0 ? (
+                    <tr>
+                      <td colSpan={13} className="px-4 py-8 text-center text-gray-400">
+                        Aucune donnée de planning
+                      </td>
+                    </tr>
+                  ) : (
+                    planning.map((p) => (
+                      <tr key={p.displayName} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900">{p.displayName}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {p.departements.map((d) => (
+                              <span key={d} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded font-mono">{d}</span>
+                            ))}
+                            {p.belgique && (
+                              <span className="px-1.5 py-0.5 bg-violet-50 text-violet-600 text-[10px] rounded">BE</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-center font-medium text-gray-900">{p.nbA}</td>
+                        <td className="px-3 py-3 text-center text-blue-700 font-semibold">{p.joursA}</td>
+                        <td className="px-3 py-3 text-center font-medium text-gray-900">{p.nbB}</td>
+                        <td className="px-3 py-3 text-center text-green-700 font-semibold">{p.joursB}</td>
+                        <td className="px-3 py-3 text-center font-medium text-gray-900">{p.nbNouveaux}</td>
+                        <td className="px-3 py-3 text-center text-violet-700 font-semibold">{p.joursNouveaux}</td>
+                        <td className="px-3 py-3 text-center font-medium text-gray-500">{p.nbMerchTV}</td>
+                        <td className="px-3 py-3 text-center text-gray-500 font-semibold">{p.joursMTV}</td>
+                        <td className="px-3 py-3 text-center font-medium text-gray-500">{p.nbMerchIlyasse}</td>
+                        <td className="px-3 py-3 text-center text-gray-500 font-semibold">{p.joursMI}</td>
+                        <td className="px-3 py-3 text-center font-bold text-gray-900">
+                          {p.totalJours}<span className="text-gray-400 font-normal text-xs"> / {p.joursDispo}j</span>
+                        </td>
+                        <td className={`px-3 py-3 text-center font-bold text-base ${
+                          p.joursLibres > 5 ? "text-green-600" : p.joursLibres >= 0 ? "text-orange-500" : "text-red-600"
+                        }`}>
+                          {p.joursLibres}j
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

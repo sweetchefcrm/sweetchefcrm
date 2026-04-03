@@ -23,6 +23,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [villes, setVilles] = useState<string[]>([]);
   const [categorieTypes, setCategorieTypes] = useState<string[]>([]);
+  const [sousCategories, setSousCategories] = useState<string[]>([]);
   const [commerciaux, setCommercaux] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function ClientsPage() {
       .then((d) => {
         setVilles(d.villes || []);
         setCategorieTypes(d.types || []);
+        setSousCategories(d.sousCategories || []);
         setCommercaux(d.commerciaux || []);
       });
   }, []);
@@ -48,6 +50,7 @@ export default function ClientsPage() {
   const [etagereFilter, setEtagereFilter] = useState("");
   const [villeFilter, setVilleFilter] = useState("");
   const [categorieStatutFilter, setCategorieStatutFilter] = useState("");
+  const [sousCategorieFilter, setSousCategorieFilter] = useState("");
   const [categorieTypeFilter, setCategorieTypeFilter] = useState("");
   const [commercialFilter, setCommercialFilter] = useState("");
 
@@ -65,6 +68,7 @@ export default function ClientsPage() {
       etagere: etagereFilter,
       ville: villeFilter,
       categorieStatut: categorieStatutFilter,
+      sousCategorie: sousCategorieFilter,
       categorieType: categorieTypeFilter,
       commercial: commercialFilter,
     });
@@ -72,7 +76,7 @@ export default function ClientsPage() {
     const json = await res.json();
     setData(json);
     setLoading(false);
-  }, [filter, search, page, sortBy, sortOrder, etagereFilter, villeFilter, categorieStatutFilter, categorieTypeFilter, commercialFilter]);
+  }, [filter, search, page, sortBy, sortOrder, etagereFilter, villeFilter, categorieStatutFilter, sousCategorieFilter, categorieTypeFilter, commercialFilter]);
 
   useEffect(() => {
     const t = setTimeout(fetchClients, 300);
@@ -96,6 +100,7 @@ export default function ClientsPage() {
     setEtagereFilter("");
     setVilleFilter("");
     setCategorieStatutFilter("");
+    setSousCategorieFilter("");
     setCategorieTypeFilter("");
     setCommercialFilter("");
     setSortBy("nom");
@@ -125,10 +130,12 @@ export default function ClientsPage() {
         etagereFilter={etagereFilter}
         villeFilter={villeFilter}
         categorieStatutFilter={categorieStatutFilter}
+        sousCategorieFilter={sousCategorieFilter}
         categorieTypeFilter={categorieTypeFilter}
         commercialFilter={commercialFilter}
         villes={villes}
         categorieTypes={categorieTypes}
+        sousCategories={sousCategories}
         commerciaux={commerciaux}
         onFilterChange={handleFilterChange}
         onSearchChange={handleSearchChange}
@@ -137,6 +144,7 @@ export default function ClientsPage() {
         onEtagereFilterChange={(v) => { setEtagereFilter(v); resetPage(); }}
         onVilleFilterChange={(v) => { setVilleFilter(v); resetPage(); }}
         onCategorieStatutChange={(v) => { setCategorieStatutFilter(v); resetPage(); }}
+        onSousCategorieChange={(v) => { setSousCategorieFilter(v); resetPage(); }}
         onCategorieTypeChange={(v) => { setCategorieTypeFilter(v); resetPage(); }}
         onCommercialFilterChange={(v) => { setCommercialFilter(v); resetPage(); }}
         onReset={handleReset}

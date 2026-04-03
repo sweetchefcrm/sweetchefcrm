@@ -21,7 +21,7 @@ export async function GET() {
     [Role.ADMIN, Role.COMMERCIAL_PRINCIPAL, Role.CHEF_TERRAIN, Role.CHEF_TELEVENTE] as Role[]
   ).includes(session.user.role as Role);
 
-  const [codesPostaux, types, commerciaux] = await Promise.all([
+  const [codesPostaux, types, sousCategories, commerciaux] = await Promise.all([
     prisma.client.findMany({
       where: { ...where, codePostal: { not: null } },
       select: { codePostal: true },
@@ -33,6 +33,12 @@ export async function GET() {
       select: { categorieType: true },
       distinct: ["categorieType"],
       orderBy: { categorieType: "asc" },
+    }),
+    prisma.client.findMany({
+      where: { ...where, sousCategorie: { not: null } },
+      select: { sousCategorie: true },
+      distinct: ["sousCategorie"],
+      orderBy: { sousCategorie: "asc" },
     }),
     canFilterByCommercial
       ? prisma.client.findMany({
@@ -46,6 +52,7 @@ export async function GET() {
   return NextResponse.json({
     villes: codesPostaux.map((v) => v.codePostal).filter(Boolean) as string[],
     types: types.map((t) => t.categorieType).filter(Boolean) as string[],
+    sousCategories: sousCategories.map((s) => s.sousCategorie).filter(Boolean) as string[],
     commerciaux: (commerciaux as { commercial: { id: string; name: string } }[])
       .map((c) => c.commercial)
       .sort((a, b) => a.name.localeCompare(b.name, "fr")),

@@ -189,6 +189,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       nom: c.nom,
       codePostal: c.codePostal,
       actif: c.actif,
+      categorieStatut: c.categorieStatut,
+      sousCategorie: c.sousCategorie,
       aCommandeMois: !!moisData,
       caMois: moisData?.ca ?? 0,
       nbCommandesMois: moisData?.nbCommandes ?? 0,

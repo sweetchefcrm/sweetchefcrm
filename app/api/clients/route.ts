@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") || "";
   const etagereFilter = searchParams.get("etagere") || "";
   const categorieStatutFilter = searchParams.get("categorieStatut") || "";
+  const sousCategorieFilter = searchParams.get("sousCategorie") || "";
   const categorieTypeFilter = searchParams.get("categorieType") || "";
   const codePostalFilter = searchParams.get("ville") || "";
   const page = parseInt(searchParams.get("page") || "1");
@@ -59,6 +60,9 @@ export async function GET(req: NextRequest) {
 
   if (categorieStatutFilter) {
     where.categorieStatut = { contains: categorieStatutFilter, mode: "insensitive" };
+  }
+  if (sousCategorieFilter) {
+    where.sousCategorie = { contains: sousCategorieFilter, mode: "insensitive" };
   }
   if (categorieTypeFilter) {
     where.categorieType = { contains: categorieTypeFilter, mode: "insensitive" };

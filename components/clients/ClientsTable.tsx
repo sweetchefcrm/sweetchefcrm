@@ -24,6 +24,7 @@ export interface Client {
   telephone?: string | null;
   actif: boolean;
   categorieStatut?: string | null;
+  sousCategorie?: string | null;
   categorieType?: string | null;
   etagere: boolean;
   panierMoyen?: number;
@@ -47,18 +48,46 @@ interface ClientsTableProps {
 }
 
 const STATUT_STYLES: Record<string, string> = {
-  "stratégiques": "bg-blue-100 text-blue-800",
-  "réguliers":    "bg-green-100 text-green-800",
-  "occasionnels": "bg-amber-100 text-amber-800",
-  "nouveaux":     "bg-violet-100 text-violet-800",
+  "strategique":  "bg-blue-100 text-blue-800",
+  "stratégique":  "bg-blue-100 text-blue-800",
+  "regulier":     "bg-green-100 text-green-800",
+  "régulier":     "bg-green-100 text-green-800",
+  "occasionnel":  "bg-amber-100 text-amber-800",
+  "nouveau":      "bg-violet-100 text-violet-800",
   "perdus":       "bg-red-100 text-red-800",
   "prospect":     "bg-gray-100 text-gray-500",
+};
+
+const SOUS_CAT_STYLES: Record<string, string> = {
+  "tres frequent":      "bg-blue-200 text-blue-900",
+  "frequent":           "bg-blue-100 text-blue-700",
+  "fidele":             "bg-indigo-100 text-indigo-800",
+  "rare":               "bg-amber-100 text-amber-700",
+  "tres regulier":      "bg-green-200 text-green-900",
+  "peu regulier":       "bg-green-100 text-green-700",
+  "peu frequent":       "bg-yellow-100 text-yellow-700",
+  "tres rare":          "bg-orange-100 text-orange-700",
+  "fidelisation rapide":"bg-violet-200 text-violet-900",
+  "premier achat":      "bg-gray-100 text-gray-500",
+  "en developpement":   "bg-sky-100 text-sky-700",
 };
 
 function statutStyle(statut: string): string {
   const lower = statut.toLowerCase();
   for (const [key, cls] of Object.entries(STATUT_STYLES)) {
     if (lower.includes(key)) return cls;
+  }
+  return "bg-gray-100 text-gray-500";
+}
+
+function normalize(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function sousCatStyle(sousCat: string): string {
+  const n = normalize(sousCat);
+  for (const [key, cls] of Object.entries(SOUS_CAT_STYLES)) {
+    if (n.includes(normalize(key))) return cls;
   }
   return "bg-gray-100 text-gray-500";
 }
@@ -139,6 +168,7 @@ export default function ClientsTable({
                 <SortableTh field="codeClient" label="Code" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} />
                 <SortableTh field="nom" label="Nom" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} />
                 <SortableTh field="categorieStatut" label="Catégorie" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} />
+                <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Sous-catégorie</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Type</th>
                 <SortableTh field="codePostal" label="Code Postal" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} />
                 <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Commercial</th>
@@ -153,7 +183,7 @@ export default function ClientsTable({
             <tbody className="divide-y divide-gray-100">
               {clients.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 12 : 11} className="text-center py-8 text-gray-400">
+                  <td colSpan={canEdit ? 13 : 12} className="text-center py-8 text-gray-400">
                     Aucun client trouvé
                   </td>
                 </tr>
@@ -163,11 +193,22 @@ export default function ClientsTable({
                     <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{client.codeClient}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{client.nom}</td>
 
-                    {/* Catégorie = statut fidélité */}
+                    {/* Catégorie */}
                     <td className="px-4 py-3">
                       {client.categorieStatut ? (
                         <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-full whitespace-nowrap ${statutStyle(client.categorieStatut)}`}>
                           {client.categorieStatut}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </td>
+
+                    {/* Sous-catégorie */}
+                    <td className="px-4 py-3">
+                      {client.sousCategorie ? (
+                        <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-full whitespace-nowrap ${sousCatStyle(client.sousCategorie)}`}>
+                          {client.sousCategorie}
                         </span>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>

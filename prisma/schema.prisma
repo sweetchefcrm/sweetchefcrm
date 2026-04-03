@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -31,6 +32,7 @@ model Client {
   commercial   User     @relation(fields: [commercialId], references: [id])
   actif            Boolean  @default(true)
   categorieStatut  String?
+  sousCategorie    String?
   categorieType    String?
   etagere          Boolean  @default(false)
   dateCreation DateTime @default(now())

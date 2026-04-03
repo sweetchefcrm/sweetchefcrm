@@ -23,13 +23,21 @@ const SORT_OPTIONS = [
   { value: "panierMoyen", label: "Panier moyen" },
 ];
 
-const STATUTS = [
-  "stratégiques",
-  "réguliers",
-  "occasionnels",
-  "nouveaux",
-  "perdus",
-  "prospect",
+const STATUTS: { value: string; label: string; color: string; active: string }[] = [
+  { value: "stratégiques", label: "Stratégiques", color: "bg-blue-100 text-blue-800 border-blue-200",   active: "bg-blue-600 text-white border-blue-600" },
+  { value: "réguliers",    label: "Réguliers",    color: "bg-green-100 text-green-800 border-green-200", active: "bg-green-600 text-white border-green-600" },
+  { value: "occasionnels", label: "Occasionnels", color: "bg-amber-100 text-amber-800 border-amber-200", active: "bg-amber-500 text-white border-amber-500" },
+  { value: "nouveaux",     label: "Nouveaux",     color: "bg-violet-100 text-violet-800 border-violet-200", active: "bg-violet-600 text-white border-violet-600" },
+  { value: "perdus",       label: "Perdus",       color: "bg-red-100 text-red-800 border-red-200",     active: "bg-red-600 text-white border-red-600" },
+  { value: "prospect",     label: "Prospect",     color: "bg-gray-100 text-gray-600 border-gray-200",  active: "bg-gray-600 text-white border-gray-600" },
+];
+
+// Sous-catégories groupées par catégorie parente
+const SOUS_CAT_GROUPS: { statut: string; label: string; color: string; items: string[] }[] = [
+  { statut: "stratégiques", label: "Stratégiques", color: "text-blue-700",   items: ["Tres frequent", "Mensuel", "Bimestriel"] },
+  { statut: "réguliers",    label: "Réguliers",    color: "text-green-700",  items: ["Fidèle", "Tres regulier", "Regulier"] },
+  { statut: "occasionnels", label: "Occasionnels", color: "text-amber-700",  items: ["Frequent", "Peu frequent", "Rare", "Tres rare"] },
+  { statut: "nouveaux",     label: "Nouveaux",     color: "text-violet-700", items: ["Fidelisation rapide", "En developpement", "Premier achat"] },
 ];
 
 const ETAGERE_OPTIONS = [
@@ -48,10 +56,12 @@ interface ClientFiltersProps {
   etagereFilter: string;
   villeFilter: string;
   categorieStatutFilter: string;
+  sousCategorieFilter: string;
   categorieTypeFilter: string;
   commercialFilter: string;
   villes: string[];
   categorieTypes: string[];
+  sousCategories: string[];
   commerciaux: Commercial[];
   onFilterChange: (f: string) => void;
   onSearchChange: (s: string) => void;
@@ -60,6 +70,7 @@ interface ClientFiltersProps {
   onEtagereFilterChange: (v: string) => void;
   onVilleFilterChange: (v: string) => void;
   onCategorieStatutChange: (v: string) => void;
+  onSousCategorieChange: (v: string) => void;
   onCategorieTypeChange: (v: string) => void;
   onCommercialFilterChange: (v: string) => void;
   onReset: () => void;
@@ -73,10 +84,12 @@ export default function ClientFilters({
   etagereFilter,
   villeFilter,
   categorieStatutFilter,
+  sousCategorieFilter,
   categorieTypeFilter,
   commercialFilter,
   villes,
   categorieTypes,
+  sousCategories,
   commerciaux,
   onFilterChange,
   onSearchChange,
@@ -85,15 +98,16 @@ export default function ClientFilters({
   onEtagereFilterChange,
   onVilleFilterChange,
   onCategorieStatutChange,
+  onSousCategorieChange,
   onCategorieTypeChange,
   onCommercialFilterChange,
   onReset,
 }: ClientFiltersProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const hasAdvancedFilters = !!(villeFilter || categorieStatutFilter || categorieTypeFilter || etagereFilter || commercialFilter);
+  const hasAdvancedFilters = !!(villeFilter || categorieStatutFilter || sousCategorieFilter || categorieTypeFilter || etagereFilter || commercialFilter);
 
-  const activeCount = [villeFilter, categorieStatutFilter, categorieTypeFilter, etagereFilter, commercialFilter]
+  const activeCount = [villeFilter, categorieStatutFilter, sousCategorieFilter, categorieTypeFilter, etagereFilter, commercialFilter]
     .filter(Boolean).length;
 
   return (
@@ -166,7 +180,7 @@ export default function ClientFilters({
       {showAdvanced && (
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filtres avancés — combinables</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
 
             {/* Code Postal */}
             <div>
@@ -183,17 +197,60 @@ export default function ClientFilters({
               </select>
             </div>
 
-            {/* Catégorie statut */}
-            <div>
+            {/* Catégorie client — pills colorées */}
+            <div className="sm:col-span-2 xl:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Catégorie client</label>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => { onCategorieStatutChange(""); onSousCategorieChange(""); }}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    !categorieStatutFilter
+                      ? "bg-gray-700 text-white border-gray-700"
+                      : "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200"
+                  }`}
+                >
+                  Toutes
+                </button>
+                {STATUTS.map((s) => (
+                  <button
+                    key={s.value}
+                    onClick={() => {
+                      if (categorieStatutFilter === s.value) {
+                        onCategorieStatutChange("");
+                        onSousCategorieChange("");
+                      } else {
+                        onCategorieStatutChange(s.value);
+                        onSousCategorieChange("");
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      categorieStatutFilter === s.value ? s.active : s.color + " hover:opacity-80"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sous-catégorie — groupée par catégorie */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Sous-catégorie</label>
               <select
-                value={categorieStatutFilter}
-                onChange={(e) => onCategorieStatutChange(e.target.value)}
+                value={sousCategorieFilter}
+                onChange={(e) => onSousCategorieChange(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
-                <option value="">Toutes les catégories</option>
-                {STATUTS.map((s) => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                <option value="">Toutes</option>
+                {(categorieStatutFilter
+                  ? SOUS_CAT_GROUPS.filter((g) => g.statut === categorieStatutFilter)
+                  : SOUS_CAT_GROUPS
+                ).map((group) => (
+                  <optgroup key={group.statut} label={`── ${group.label}`}>
+                    {group.items.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -254,10 +311,19 @@ export default function ClientFilters({
                   <button onClick={() => onVilleFilterChange("")}><X className="w-3 h-3" /></button>
                 </span>
               )}
-              {categorieStatutFilter && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
-                  Catégorie : {categorieStatutFilter}
-                  <button onClick={() => onCategorieStatutChange("")}><X className="w-3 h-3" /></button>
+              {categorieStatutFilter && (() => {
+                const s = STATUTS.find((x) => x.value === categorieStatutFilter);
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border font-medium ${s ? s.active : "bg-blue-100 text-blue-700 border-blue-200"}`}>
+                    {s?.label ?? categorieStatutFilter}
+                    <button onClick={() => { onCategorieStatutChange(""); onSousCategorieChange(""); }}><X className="w-3 h-3" /></button>
+                  </span>
+                );
+              })()}
+              {sousCategorieFilter && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full">
+                  Sous-cat. : {sousCategorieFilter}
+                  <button onClick={() => onSousCategorieChange("")}><X className="w-3 h-3" /></button>
                 </span>
               )}
               {categorieTypeFilter && (
