@@ -17,11 +17,14 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const role = session.user.role as Role;
-  if (!ADMIN_ROLES.includes(role))
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const isAdmin = ADMIN_ROLES.includes(role);
 
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
+
+  // Un commercial peut accéder à son propre planning
+  if (!isAdmin && session.user.id !== userId)
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   const type = searchParams.get("type"); // A | B | nouveaux | merchTV | merchIlyasse
 
   if (!userId || !type)

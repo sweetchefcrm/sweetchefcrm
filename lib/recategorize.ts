@@ -39,6 +39,7 @@ export async function recategorizeClients(): Promise<RecategorizeSummary> {
     nbCommandes: number;
     ordersPerMonth: number;
     categorieStatut: string | null;
+    sousCategorie?: string; // définie uniquement pour les nouveaux
   };
 
   const stats: ClientStat[] = clients.map((c) => {
@@ -86,7 +87,11 @@ export async function recategorizeClients(): Promise<RecategorizeSummary> {
 
     // ── Nouveaux : première commande il y a < 3 mois ─────────────────────
     if (daysSinceFirst < 90) {
-      return { ...base, categorieStatut: "nouveaux" };
+      const sousCategorie =
+        nbCommandes === 1 ? "premier achat"
+        : nbCommandes === 2 ? "en developpement"
+        : "fidelisation rapide";
+      return { ...base, categorieStatut: "nouveaux", sousCategorie };
     }
 
     // ── Actifs non encore classés (traitement en lot ci-dessous) ─────────
@@ -122,7 +127,10 @@ export async function recategorizeClients(): Promise<RecategorizeSummary> {
     stats.map((c) =>
       prisma.client.update({
         where: { id: c.id },
-        data: { categorieStatut: c.categorieStatut },
+        data: {
+          categorieStatut: c.categorieStatut,
+          ...(c.sousCategorie !== undefined ? { sousCategorie: c.sousCategorie } : {}),
+        },
       })
     )
   );
