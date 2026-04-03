@@ -251,7 +251,7 @@ export async function GET(_req: NextRequest) {
   const buffer = await wb.xlsx.writeBuffer();
   const date = new Date().toISOString().slice(0, 10);
 
-  return new NextResponse(buffer as Buffer, {
+  return new NextResponse(buffer as ArrayBuffer, {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
