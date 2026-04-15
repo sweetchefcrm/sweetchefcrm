@@ -43,16 +43,17 @@ model Client {
 }
 
 model Vente {
-  id           String   @id @default(uuid())
-  clientId     String
-  commercialId String
-  montant      Decimal  @db.Decimal(10, 2)
-  dateVente    DateTime
-  mois         Int
-  annee        Int
-  createdAt    DateTime @default(now())
-  client       Client   @relation(fields: [clientId], references: [id])
-  commercial   User     @relation(fields: [commercialId], references: [id])
+  id            String   @id @default(uuid())
+  clientId      String
+  commercialId  String
+  montant       Decimal  @db.Decimal(10, 2)
+  dateVente     DateTime
+  mois          Int
+  annee         Int
+  importBatchId String?
+  createdAt     DateTime @default(now())
+  client        Client   @relation(fields: [clientId], references: [id])
+  commercial    User     @relation(fields: [commercialId], references: [id])
 
   @@unique([clientId, dateVente, montant])
   @@map("ventes")

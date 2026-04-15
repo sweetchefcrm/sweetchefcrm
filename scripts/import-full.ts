@@ -14,6 +14,7 @@ dotenv.config({ path: ".env.local" });
 import * as XLSX from "xlsx";
 import * as path from "path";
 import { PrismaClient, ImportStatus } from "@prisma/client";
+import { createBackup } from "../lib/backup";
 
 const prisma = new PrismaClient();
 
@@ -71,9 +72,26 @@ async function main() {
   }
   console.log(`${allUsers.length} commerciaux chargés`);
 
+  // ── 0. Sauvegarde automatique ─────────────────────────────────────────────
+  console.log("\nSauvegarde automatique avant import...");
+  try {
+    const backupMeta = await createBackup(
+      prisma,
+      `Avant import ${new Date().toLocaleDateString("fr-FR")}`
+    );
+    if (backupMeta) {
+      console.log(`  Sauvegarde créée : ${backupMeta.id} (${backupMeta.clientCount} clients, ${backupMeta.venteCount} ventes)`);
+    } else {
+      console.log("  Base vide — pas de sauvegarde nécessaire.");
+    }
+  } catch (e) {
+    console.warn("  Avertissement : sauvegarde impossible :", e instanceof Error ? e.message : String(e));
+  }
+
   // ── 1. Nettoyage ──────────────────────────────────────────────────────────
   console.log("\nNettoyage de la base...");
   const vDel = await prisma.vente.deleteMany();
+  await prisma.prospect.updateMany({ data: { clientId: null } });
   const cDel = await prisma.client.deleteMany();
   const lDel = await prisma.importLog.deleteMany();
   console.log(`  ${vDel.count} ventes | ${cDel.count} clients | ${lDel.count} logs supprimés`);

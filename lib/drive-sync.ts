@@ -211,16 +211,17 @@ export async function syncDriveFiles(): Promise<{
           rowsImported++;
         }
 
+        // Créer le log en premier pour obtenir son ID (utilisé comme batchId sur les ventes)
+        const importLog = await prisma.importLog.create({
+          data: { fileName, fileDate, status: ImportStatus.SUCCESS, rowsImported },
+        });
+
         if (ventesData.length > 0) {
           await prisma.vente.createMany({
-            data: ventesData,
+            data: ventesData.map((v) => ({ ...v, importBatchId: importLog.id })),
             skipDuplicates: true,
           });
         }
-
-        await prisma.importLog.create({
-          data: { fileName, fileDate, status: ImportStatus.SUCCESS, rowsImported },
-        });
 
         // Mettre à jour statut accessible/inaccessible (6 mois)
         const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);

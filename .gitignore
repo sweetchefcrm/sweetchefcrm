@@ -44,5 +44,8 @@ next-env.d.ts
 acces-crm.xlsx
 exports/
 
+# sauvegardes DB (potentiellement volumineuses)
+backups/*.json
+
 # configuration locale Claude Code
 .claude/

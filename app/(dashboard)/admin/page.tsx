@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Header from "@/components/layout/Header";
 import ImportLogs from "@/components/admin/ImportLogs";
 import AdminSegmentationTab from "@/components/segmentation/AdminSegmentationTab";
-import { Users, Plus, Loader2, X, Pencil, RefreshCw, CheckCircle } from "lucide-react";
+import { Users, Plus, Loader2, X, Pencil, RefreshCw, CheckCircle, Save, RotateCcw, AlertTriangle } from "lucide-react";
 import UserEditModal from "@/components/admin/UserEditModal";
 
 interface User {
@@ -54,6 +54,7 @@ const TAB_LABELS: Record<string, string> = {
   categorisation: "Catégorisation",
   planning: "Planning",
   segmentation: "Segmentation CA",
+  sauvegardes: "Sauvegardes",
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -65,12 +66,20 @@ const CATEGORY_COLORS: Record<string, string> = {
   "prospect":      "bg-gray-100 text-gray-500",
 };
 
+interface BackupMeta {
+  id: string;
+  createdAt: string;
+  clientCount: number;
+  venteCount: number;
+  label?: string;
+}
+
 export default function AdminPage() {
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState<User[]>([]);
   const [planning, setPlanning] = useState<PlanningRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"imports" | "users" | "categorisation" | "planning" | "segmentation">("imports");
+  const [tab, setTab] = useState<"imports" | "users" | "categorisation" | "planning" | "segmentation" | "sauvegardes">("imports");
   const [recatLoading, setRecatLoading] = useState(false);
   const [recatResult, setRecatResult] = useState<{ total: number; byCategory: Record<string, number>; prospectsCreated: number } | null>(null);
   const [recatError, setRecatError] = useState("");
@@ -79,6 +88,14 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // --- Sauvegardes ---
+  const [backups, setBackups] = useState<BackupMeta[]>([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [backupCreating, setBackupCreating] = useState(false);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<BackupMeta | null>(null);
+  const [backupMessage, setBackupMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   async function fetchData() {
     setLoading(true);
@@ -98,7 +115,57 @@ export default function AdminPage() {
     setLoading(false);
   }
 
+  async function fetchBackups() {
+    setBackupsLoading(true);
+    try {
+      const res = await fetch("/api/admin/backups");
+      const data = await res.json();
+      setBackups(Array.isArray(data) ? data : []);
+    } catch {
+      setBackups([]);
+    }
+    setBackupsLoading(false);
+  }
+
+  async function handleCreateBackup() {
+    setBackupCreating(true);
+    setBackupMessage(null);
+    try {
+      const res = await fetch("/api/admin/backups", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setBackupMessage({ type: "error", text: data.error || "Erreur lors de la sauvegarde" });
+      } else {
+        setBackupMessage({ type: "success", text: `Sauvegarde créée : ${data.backup.clientCount} clients, ${data.backup.venteCount} ventes` });
+        fetchBackups();
+      }
+    } catch {
+      setBackupMessage({ type: "error", text: "Erreur réseau" });
+    }
+    setBackupCreating(false);
+  }
+
+  async function handleRestoreConfirm() {
+    if (!confirmRestore) return;
+    setRestoring(confirmRestore.id);
+    setConfirmRestore(null);
+    setBackupMessage(null);
+    try {
+      const res = await fetch(`/api/admin/backups/${confirmRestore.id}/restore`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setBackupMessage({ type: "error", text: data.error || "Erreur lors de la restauration" });
+      } else {
+        setBackupMessage({ type: "success", text: `Restauration réussie : ${data.clientCount} clients, ${data.venteCount} ventes restaurés` });
+      }
+    } catch {
+      setBackupMessage({ type: "error", text: "Erreur réseau" });
+    }
+    setRestoring(null);
+  }
+
   useEffect(() => { fetchData(); }, []);
+  useEffect(() => { if (tab === "sauvegardes") fetchBackups(); }, [tab]);
 
   async function handleRecategorize() {
     setRecatLoading(true);
@@ -149,7 +216,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {(["imports", "users", "categorisation", "planning", "segmentation"] as const).map((t) => (
+        {(["imports", "users", "categorisation", "planning", "segmentation", "sauvegardes"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -339,6 +406,134 @@ export default function AdminPage() {
       )}
 
       {tab === "segmentation" && <AdminSegmentationTab />}
+
+      {tab === "sauvegardes" && (
+        <div className="space-y-4 max-w-3xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-700 font-medium">Sauvegardes automatiques</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Une sauvegarde est créée automatiquement avant chaque import. Vous pouvez aussi en créer une manuellement.
+              </p>
+            </div>
+            <button
+              onClick={handleCreateBackup}
+              disabled={backupCreating}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1E40AF] text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60"
+            >
+              {backupCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Sauvegarder maintenant
+            </button>
+          </div>
+
+          {backupMessage && (
+            <div className={`flex items-start gap-2 px-4 py-3 rounded-lg text-sm ${
+              backupMessage.type === "success"
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}>
+              {backupMessage.type === "success"
+                ? <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                : <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+              {backupMessage.text}
+            </div>
+          )}
+
+          {backupsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-[#1E40AF]" />
+            </div>
+          ) : backups.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+              Aucune sauvegarde disponible. Lancez un import ou cliquez sur "Sauvegarder maintenant".
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                    <th className="text-left px-4 py-3 font-semibold">Date</th>
+                    <th className="text-left px-4 py-3 font-semibold">Label</th>
+                    <th className="text-center px-4 py-3 font-semibold">Clients</th>
+                    <th className="text-center px-4 py-3 font-semibold">Ventes</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {backups.map((b) => (
+                    <tr key={b.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
+                        {new Date(b.createdAt).toLocaleString("fr-FR", {
+                          day: "2-digit", month: "2-digit", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{b.label || "—"}</td>
+                      <td className="px-4 py-3 text-center text-gray-700 font-medium">
+                        {b.clientCount.toLocaleString("fr-FR")}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700 font-medium">
+                        {b.venteCount.toLocaleString("fr-FR")}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => setConfirmRestore(b)}
+                          disabled={restoring !== null}
+                          className="flex items-center gap-1.5 ml-auto px-3 py-1.5 text-xs text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 disabled:opacity-50"
+                        >
+                          {restoring === b.id
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <RotateCcw className="w-3 h-3" />}
+                          Restaurer
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal confirmation restauration */}
+      {confirmRestore && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Confirmer la restauration</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Cette action est irréversible</p>
+              </div>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-800 space-y-1">
+              <p><strong>Sauvegarde :</strong> {new Date(confirmRestore.createdAt).toLocaleString("fr-FR")}</p>
+              <p><strong>Contenu :</strong> {confirmRestore.clientCount.toLocaleString("fr-FR")} clients, {confirmRestore.venteCount.toLocaleString("fr-FR")} ventes</p>
+              {confirmRestore.label && <p><strong>Label :</strong> {confirmRestore.label}</p>}
+            </div>
+            <p className="text-sm text-gray-600">
+              Toutes les données actuelles (clients et ventes) seront <strong>définitivement supprimées</strong> et remplacées par celles de cette sauvegarde.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmRestore(null)}
+                className="flex-1 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleRestoreConfirm}
+                className="flex-1 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 font-medium"
+              >
+                Oui, restaurer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal édition utilisateur */}
       {editingUser && (
