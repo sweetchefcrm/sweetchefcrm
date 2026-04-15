@@ -6,21 +6,22 @@ import prisma from "@/lib/prisma";
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== Role.ADMIN) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const log = await prisma.importLog.findUnique({ where: { id: params.id } });
+  const { id } = await params;
+  const log = await prisma.importLog.findUnique({ where: { id } });
   if (!log) {
     return NextResponse.json({ error: "Import introuvable" }, { status: 404 });
   }
 
   // 1. Supprimer ventes taguées avec ce batch (imports récents)
   const byBatch = await prisma.vente.deleteMany({
-    where: { importBatchId: params.id },
+    where: { importBatchId: id },
   });
 
   let deleted = byBatch.count;
@@ -43,7 +44,7 @@ export async function DELETE(
   }
 
   // 3. Supprimer le log d'import (permet de ré-importer ce fichier si besoin)
-  await prisma.importLog.delete({ where: { id: params.id } });
+  await prisma.importLog.delete({ where: { id } });
 
   return NextResponse.json({ success: true, ventesDeleted: deleted });
 }

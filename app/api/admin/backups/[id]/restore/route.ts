@@ -7,15 +7,16 @@ import prisma from "@/lib/prisma";
 
 export async function POST(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== Role.ADMIN) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
+  const { id } = await params;
   try {
-    const result = await restoreBackup(prisma, params.id);
+    const result = await restoreBackup(prisma, id);
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
