@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
+  Map,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Role } from "@prisma/client";
@@ -40,6 +41,12 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: DASHBOARD_ROLES },
   { href: "/commercial/me", label: "Mes Performances", icon: User, roles: PERFORMANCE_ROLES },
   { href: "/clients", label: "Clients", icon: Users, roles: null },
+  {
+    href: "/map",
+    label: "Carte",
+    icon: Map,
+    roles: [Role.ADMIN, Role.COMMERCIAL_PRINCIPAL, Role.CHEF_TERRAIN, Role.CHEF_TELEVENTE],
+  },
   {
     href: "/analyses",
     label: "Analyses",
