@@ -468,7 +468,7 @@ export default function SegmentationPage() {
                             ))}
                           </Pie>
                           <Tooltip
-                            formatter={(v: number) => fmt(v)}
+                            formatter={(v: number | undefined) => fmt(v ?? 0)}
                             contentStyle={{ borderRadius: "8px", border: "1px solid #E5E7EB", fontSize: "12px" }}
                           />
                           <Legend formatter={(value) => <span style={{ fontSize: 12 }}>{value}</span>} />
@@ -897,7 +897,7 @@ export default function SegmentationPage() {
                               <XAxis dataKey="cat" tick={{ fontSize: 11 }} />
                               <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k€`} tick={{ fontSize: 11 }} />
                               <Tooltip
-                                formatter={(v: number) => fmt(v)}
+                                formatter={(v: number | undefined) => fmt(v ?? 0)}
                                 contentStyle={{ borderRadius: "8px", border: "1px solid #E5E7EB", fontSize: "12px" }}
                               />
                               <Legend />
