@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Header from "@/components/layout/Header";
 import ImportLogs from "@/components/admin/ImportLogs";
-import AdminSegmentationTab from "@/components/segmentation/AdminSegmentationTab";
 import { Users, Plus, Loader2, X, Pencil, RefreshCw, CheckCircle, Save, RotateCcw, AlertTriangle } from "lucide-react";
 import UserEditModal from "@/components/admin/UserEditModal";
 
@@ -53,7 +52,6 @@ const TAB_LABELS: Record<string, string> = {
   users: "Utilisateurs",
   categorisation: "Catégorisation",
   planning: "Planning",
-  segmentation: "Segmentation CA",
   sauvegardes: "Sauvegardes",
 };
 
@@ -79,7 +77,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [planning, setPlanning] = useState<PlanningRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"imports" | "users" | "categorisation" | "planning" | "segmentation" | "sauvegardes">("imports");
+  const [tab, setTab] = useState<"imports" | "users" | "categorisation" | "planning" | "sauvegardes">("imports");
   const [recatLoading, setRecatLoading] = useState(false);
   const [recatResult, setRecatResult] = useState<{ total: number; byCategory: Record<string, number>; prospectsCreated: number } | null>(null);
   const [recatError, setRecatError] = useState("");
@@ -216,7 +214,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {(["imports", "users", "categorisation", "planning", "segmentation", "sauvegardes"] as const).map((t) => (
+        {(["imports", "users", "categorisation", "planning", "sauvegardes"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -404,8 +402,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-
-      {tab === "segmentation" && <AdminSegmentationTab />}
 
       {tab === "sauvegardes" && (
         <div className="space-y-4 max-w-3xl">

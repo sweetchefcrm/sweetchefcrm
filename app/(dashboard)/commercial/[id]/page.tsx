@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Header from "@/components/layout/Header";
 import KPICard from "@/components/dashboard/KPICard";
 import RevenueChart from "@/components/dashboard/RevenueChart";
-import CommercialSegmentationTab from "@/components/segmentation/CommercialSegmentationTab";
 import {
   Euro,
   Users,
@@ -198,7 +197,7 @@ export default function CommercialPage() {
   const [sortField, setSortField] = useState<string>("commande");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const autoNavRef = useRef<string>(""); // id du commercial pour lequel l'auto-nav a déjà eu lieu
-  const [tab, setTab] = useState<"performances" | "planning" | "segmentation">("performances");
+  const [tab, setTab] = useState<"performances" | "planning">("performances");
   const [planningData, setPlanningData] = useState<PlanningRow[] | null>(null);
   const [planningLoading, setPlanningLoading] = useState(false);
 
@@ -384,16 +383,6 @@ export default function CommercialPage() {
           Performances
         </button>
         <button
-          onClick={() => setTab("segmentation")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === "segmentation"
-              ? "border-[#1E40AF] text-[#1E40AF]"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Segmentation CA
-        </button>
-        <button
           onClick={handleTabPlanning}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             tab === "planning"
@@ -538,10 +527,6 @@ export default function CommercialPage() {
             ))
           )}
         </div>
-      )}
-
-      {tab === "segmentation" && (
-        <CommercialSegmentationTab commercialId={id} />
       )}
 
       {tab === "performances" && (<>
