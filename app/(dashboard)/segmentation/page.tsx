@@ -83,12 +83,19 @@ interface MoisRow {
   parSousCategorie: Record<string, number>;
   parType: Record<string, number>;
 }
+interface PeriodeRow {
+  key: string; label: string; total: number; nb: number;
+  parCategorie: Record<string, number>;
+  parSousCategorie: Record<string, number>;
+  parType: Record<string, number>;
+}
 interface SegData {
   parCategorie: SegItem[];
   parSousCategorie: SegItem[];
   parType: SegItem[];
   parCommercial: CommercialItem[];
   parMois: MoisRow[];
+  parPeriode: PeriodeRow[];
   totalCA: number;
   commerciauxList: { id: string; name: string; teamType: string | null }[];
   moisDisponibles: { mois: number; annee: number }[];
@@ -96,12 +103,14 @@ interface SegData {
 
 function PivotTable({
   title,
+  description,
   rows,
   colKey,
   colorFn,
 }: {
   title: string;
-  rows: MoisRow[];
+  description?: string;
+  rows: PeriodeRow[];
   colKey: "parCategorie" | "parSousCategorie" | "parType";
   colorFn?: (key: string) => string;
 }) {
@@ -118,13 +127,13 @@ function PivotTable({
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100">
         <h3 className="font-semibold text-gray-800">{title}</h3>
-        <p className="text-xs text-gray-400 mt-0.5">Une ligne par mois · colonnes = segments</p>
+        <p className="text-xs text-gray-400 mt-0.5">{description ?? "Une ligne par période · colonnes = segments"}</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 text-gray-600 text-xs uppercase tracking-wide">
-              <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Mois</th>
+              <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Période</th>
               {cols.map((col) => (
                 <th
                   key={col}
@@ -138,7 +147,7 @@ function PivotTable({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map((row) => (
-              <tr key={`${row.mois}-${row.annee}`} className="hover:bg-blue-50/40">
+              <tr key={row.key} className="hover:bg-blue-50/40">
                 <td className="px-5 py-2.5 font-semibold text-gray-800 whitespace-nowrap">{row.label}</td>
                 {cols.map((col) => {
                   const val = row[colKey][col] ?? 0;
@@ -196,6 +205,28 @@ export default function SegmentationPage() {
   const [vendorsOpen, setVendorsOpen] = useState(false);
   const vendorsRef = useRef<HTMLDivElement>(null);
   const [expandedMois, setExpandedMois] = useState<string | null>(null);
+  const [granularite, setGranularite] = useState<"mois" | "semaine" | "jour">("mois");
+  const [selectedWeek, setSelectedWeek] = useState("");
+  const [selectedDay, setSelectedDay] = useState("");
+
+  function moisToPeriode(rows: MoisRow[]): PeriodeRow[] {
+    return rows.map((r) => ({
+      key: `${r.annee}-${String(r.mois).padStart(2, "0")}`,
+      label: r.label,
+      total: r.total,
+      nb: r.nb,
+      parCategorie: r.parCategorie,
+      parSousCategorie: r.parSousCategorie,
+      parType: r.parType,
+    }));
+  }
+
+  function getComparePeriodes(id: string): PeriodeRow[] {
+    const d = comparisonData[id];
+    if (!d) return [];
+    if (granularite !== "mois" && d.parPeriode?.length > 0) return d.parPeriode;
+    return moisToPeriode(d.parMois);
+  }
 
   useEffect(() => {
     if (!vendorsOpen) return;
@@ -211,12 +242,20 @@ export default function SegmentationPage() {
   useEffect(() => {
     loadGlobal();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mois, annee, teamType]);
+  }, [mois, annee, teamType, granularite, selectedWeek, selectedDay]);
 
   async function loadGlobal() {
     setLoading(true);
     const params = new URLSearchParams();
-    if (mois && annee) { params.set("mois", String(mois)); params.set("annee", String(annee)); }
+    if (granularite === "mois") {
+      if (mois && annee) { params.set("mois", String(mois)); params.set("annee", String(annee)); }
+    } else if (granularite === "semaine" && selectedWeek) {
+      params.set("granularite", "semaine");
+      params.set("semaine", selectedWeek);
+    } else if (granularite === "jour" && selectedDay) {
+      params.set("granularite", "jour");
+      params.set("jour", selectedDay);
+    }
     if (teamType !== "all") params.set("teamType", teamType);
     const res = await fetch(`/api/admin/segmentation?${params}`);
     const d = await res.json();
@@ -231,12 +270,14 @@ export default function SegmentationPage() {
       loadComparison(selectedIds);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds]);
+  }, [selectedIds, granularite]);
 
   async function loadSingle(id: string) {
     setSingleLoading(true);
     setSingleData(null);
-    const res = await fetch(`/api/admin/segmentation?commercialId=${id}`);
+    const params = new URLSearchParams({ commercialId: id });
+    if (granularite !== "mois") params.set("granularite", granularite);
+    const res = await fetch(`/api/admin/segmentation?${params}`);
     const d = await res.json();
     setSingleData(d);
     setSingleLoading(false);
@@ -245,7 +286,11 @@ export default function SegmentationPage() {
   async function loadComparison(ids: string[]) {
     setCompLoading(true);
     const results = await Promise.all(
-      ids.map((id) => fetch(`/api/admin/segmentation?commercialId=${id}`).then((r) => r.json()))
+      ids.map((id) => {
+        const params = new URLSearchParams({ commercialId: id });
+        if (granularite !== "mois") params.set("granularite", granularite);
+        return fetch(`/api/admin/segmentation?${params}`).then((r) => r.json());
+      })
     );
     const byId: Record<string, SegData> = {};
     ids.forEach((id, i) => { byId[id] = results[i]; });
@@ -284,27 +329,78 @@ export default function SegmentationPage() {
 
       {/* ── Filtres ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-4 items-end">
+        {/* Toggle granularité — toujours visible */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Granularité</label>
+          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+            {(["mois", "semaine", "jour"] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => { setGranularite(g); setSelectedWeek(""); setSelectedDay(""); setExpandedMois(null); }}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  granularite === g ? "bg-[#1E40AF] text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {g === "mois" ? "Mois" : g === "semaine" ? "Semaine" : "Jour"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sélecteur de période — uniquement en mode global */}
         {mode === "global" && (
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Période</label>
-            <select
-              value={mois && annee ? `${mois}/${annee}` : "all"}
-              onChange={(e) => {
-                if (e.target.value === "all") { setMois(null); setAnnee(null); }
-                else {
-                  const [m, a] = e.target.value.split("/").map(Number);
-                  setMois(m); setAnnee(a);
-                }
-              }}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="all">Toutes périodes</option>
-              {(globalData?.moisDisponibles ?? []).map(({ mois: m, annee: a }) => (
-                <option key={`${m}/${a}`} value={`${m}/${a}`}>
-                  {MOIS_NOMS[m - 1]} {a}
-                </option>
-              ))}
-            </select>
+            {granularite === "mois" && (
+              <select
+                value={mois && annee ? `${mois}/${annee}` : "all"}
+                onChange={(e) => {
+                  if (e.target.value === "all") { setMois(null); setAnnee(null); }
+                  else {
+                    const [m, a] = e.target.value.split("/").map(Number);
+                    setMois(m); setAnnee(a);
+                  }
+                }}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="all">Toutes périodes</option>
+                {(globalData?.moisDisponibles ?? []).map(({ mois: m, annee: a }) => (
+                  <option key={`${m}/${a}`} value={`${m}/${a}`}>
+                    {MOIS_NOMS[m - 1]} {a}
+                  </option>
+                ))}
+              </select>
+            )}
+            {granularite === "semaine" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="week"
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                {selectedWeek && (
+                  <button onClick={() => setSelectedWeek("")} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
+            {granularite === "jour" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                {selectedDay && (
+                  <button onClick={() => setSelectedDay("")} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -436,7 +532,16 @@ export default function SegmentationPage() {
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <p className="text-sm text-gray-500">
                   CA total —{" "}
-                  {mois && annee ? `${MOIS_NOMS[mois - 1]} ${annee}` : "toutes périodes"}
+                  {granularite === "mois"
+                    ? (mois && annee ? `${MOIS_NOMS[mois - 1]} ${annee}` : "toutes périodes")
+                    : granularite === "semaine"
+                    ? (selectedWeek ? `Semaine ${selectedWeek.replace("-W", " — S")}` : "toutes périodes")
+                    : (selectedDay
+                        ? new Date(selectedDay + "T00:00:00Z").toLocaleDateString("fr-FR", {
+                            timeZone: "UTC", day: "2-digit", month: "long", year: "numeric",
+                          })
+                        : "toutes périodes")
+                  }
                 </p>
                 <p className="text-3xl font-bold text-gray-900 mt-1">{fmt(globalData.totalCA)}</p>
               </div>
@@ -559,6 +664,21 @@ export default function SegmentationPage() {
               ) : singleData ? (
                 <>
                   {/* Header */}
+                  {(() => {
+                    const singlePeriodes: PeriodeRow[] =
+                      granularite !== "mois" && singleData.parPeriode?.length > 0
+                        ? singleData.parPeriode
+                        : moisToPeriode(singleData.parMois);
+                    const periodeLabel =
+                      granularite === "mois" ? "mois" : granularite === "semaine" ? "semaines" : "jours";
+                    const pivotTitle =
+                      granularite === "mois"
+                        ? "Évolution mensuelle par catégorie client"
+                        : granularite === "semaine"
+                        ? "Évolution hebdomadaire par catégorie client"
+                        : "Évolution journalière par catégorie client";
+                    return (
+                    <>
                   <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
                     <div className="w-12 h-12 bg-[#1E40AF] text-white rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0">
                       {selectedCommercials[0]?.name.charAt(0) ?? "?"}
@@ -569,9 +689,9 @@ export default function SegmentationPage() {
                       <p className="text-sm text-gray-500">
                         CA total :{" "}
                         <span className="font-semibold text-gray-800">
-                          {fmt(singleData.parMois.reduce((s, r) => s + r.total, 0))}
+                          {fmt(singlePeriodes.reduce((s, r) => s + r.total, 0))}
                         </span>
-                        &nbsp;·&nbsp;{singleData.parMois.length} mois d&apos;activité
+                        &nbsp;·&nbsp;{singlePeriodes.length} {periodeLabel} d&apos;activité
                       </p>
                     </div>
                     {selectedCommercials[0]?.teamType && (
@@ -589,20 +709,23 @@ export default function SegmentationPage() {
                     </button>
                   </div>
 
-                  {/* Un seul pivot mensuel — du plus récent au plus ancien */}
+                  {/* Pivot par période — du plus récent au plus ancien */}
                   <PivotTable
-                    title="Évolution mensuelle par catégorie client"
-                    rows={[...singleData.parMois].reverse()}
+                    title={pivotTitle}
+                    rows={[...singlePeriodes].reverse()}
                     colKey="parCategorie"
                     colorFn={(k) => CAT_PIVOT_COLORS[k] ?? "text-gray-700"}
                   />
 
-                  {/* Un seul résumé global */}
+                  {/* Résumé global par catégorie */}
                   <SegmentationTable
                     title="Résumé global par catégorie"
                     items={singleData.parCategorie}
                     colorMap={BADGE_COLORS}
                   />
+                  </>
+                  );
+                  })()}
                 </>
               ) : null}
             </>
@@ -647,8 +770,9 @@ export default function SegmentationPage() {
                   {/* KPI totaux par vendeur */}
                   <div className={`grid gap-4 ${selectedCommercials.length === 2 ? "grid-cols-2" : selectedCommercials.length === 3 ? "grid-cols-3" : "grid-cols-4"}`}>
                     {selectedCommercials.map((c, i) => {
-                      const d = comparisonData[c.id];
-                      const totalCA = d?.parMois.reduce((s, r) => s + r.total, 0) ?? 0;
+                      const periodes = getComparePeriodes(c.id);
+                      const totalCA = periodes.reduce((s, r) => s + r.total, 0);
+                      const pl = granularite === "mois" ? "mois" : granularite === "semaine" ? "semaines" : "jours";
                       return (
                         <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-4">
                           <div className="flex items-center gap-2 mb-2">
@@ -661,55 +785,54 @@ export default function SegmentationPage() {
                             <span className="text-sm font-semibold text-gray-900 truncate">{c.name}</span>
                           </div>
                           <p className="text-2xl font-bold text-gray-900">{fmt(totalCA)}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{d?.parMois.length ?? 0} mois · CA total</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{periodes.length} {pl} · CA total</p>
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* Tableau mensuel croisé — mois récents en premier, clic = détail */}
+                  {/* Tableau croisé par période — clic = détail de segmentation */}
                   {(() => {
-                    const moisMap = new Map<string, { mois: number; annee: number; label: string }>();
+                    const periodeMap = new Map<string, { key: string; label: string }>();
                     selectedIds.forEach((id) => {
-                      (comparisonData[id]?.parMois ?? []).forEach((r) => {
-                        const key = `${r.annee}-${String(r.mois).padStart(2, "0")}`;
-                        if (!moisMap.has(key)) moisMap.set(key, { mois: r.mois, annee: r.annee, label: r.label });
+                      getComparePeriodes(id).forEach((r) => {
+                        if (!periodeMap.has(r.key)) periodeMap.set(r.key, { key: r.key, label: r.label });
                       });
                     });
-                    const moisRows = Array.from(moisMap.entries())
+                    const periodeRows = Array.from(periodeMap.entries())
                       .sort((a, b) => b[0].localeCompare(a[0]))
                       .map(([, v]) => v);
-                    if (!moisRows.length) return null;
+                    if (!periodeRows.length) return null;
 
                     const colSpan = selectedCommercials.length + 2;
+                    const evolLabel =
+                      granularite === "mois" ? "mensuelle" : granularite === "semaine" ? "hebdomadaire" : "journalière";
 
-                    // Mini-tableau de segmentation pour un mois donné
+                    // Mini-tableau de segmentation pour une période donnée
                     function BreakdownTable({
                       title,
                       dataKey,
-                      mois,
-                      annee,
+                      rowKey,
                       colorMap,
                     }: {
                       title: string;
                       dataKey: "parCategorie" | "parSousCategorie" | "parType";
-                      mois: number;
-                      annee: number;
+                      rowKey: string;
                       colorMap?: Record<string, string>;
                     }) {
                       const allLabels = Array.from(new Set(
                         selectedCommercials.flatMap((c) => {
-                          const mr = comparisonData[c.id]?.parMois.find((r) => r.mois === mois && r.annee === annee);
-                          return Object.keys(mr?.[dataKey] ?? {});
+                          const pr = getComparePeriodes(c.id).find((r) => r.key === rowKey);
+                          return Object.keys(pr?.[dataKey] ?? {});
                         })
                       )).sort((a, b) => {
                         const totA = selectedCommercials.reduce((s, c) => {
-                          const mr = comparisonData[c.id]?.parMois.find((r) => r.mois === mois && r.annee === annee);
-                          return s + (mr?.[dataKey][a] ?? 0);
+                          const pr = getComparePeriodes(c.id).find((r) => r.key === rowKey);
+                          return s + (pr?.[dataKey][a] ?? 0);
                         }, 0);
                         const totB = selectedCommercials.reduce((s, c) => {
-                          const mr = comparisonData[c.id]?.parMois.find((r) => r.mois === mois && r.annee === annee);
-                          return s + (mr?.[dataKey][b] ?? 0);
+                          const pr = getComparePeriodes(c.id).find((r) => r.key === rowKey);
+                          return s + (pr?.[dataKey][b] ?? 0);
                         }, 0);
                         return totB - totA;
                       });
@@ -743,8 +866,8 @@ export default function SegmentationPage() {
                                     )}
                                   </td>
                                   {selectedCommercials.map((c) => {
-                                    const mr = comparisonData[c.id]?.parMois.find((r) => r.mois === mois && r.annee === annee);
-                                    const val = mr?.[dataKey][lbl] ?? 0;
+                                    const pr = getComparePeriodes(c.id).find((r) => r.key === rowKey);
+                                    const val = pr?.[dataKey][lbl] ?? 0;
                                     return (
                                       <td key={c.id} className="px-2 py-1.5 text-right">
                                         {val > 0 ? <span className="font-semibold text-gray-900">{fmt(val)}</span> : <span className="text-gray-200">—</span>}
@@ -762,14 +885,14 @@ export default function SegmentationPage() {
                     return (
                       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                         <div className="px-5 py-4 border-b border-gray-100">
-                          <h3 className="font-semibold text-gray-800">Évolution mensuelle — CA total par vendeur</h3>
-                          <p className="text-xs text-gray-400 mt-0.5">Cliquez sur un mois pour voir la segmentation détaillée</p>
+                          <h3 className="font-semibold text-gray-800">Évolution {evolLabel} — CA total par vendeur</h3>
+                          <p className="text-xs text-gray-400 mt-0.5">Cliquez sur une période pour voir la segmentation détaillée</p>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wide text-gray-600">
-                                <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Mois</th>
+                                <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Période</th>
                                 {selectedCommercials.map((c, i) => (
                                   <th key={c.id} className="text-right px-4 py-3 font-semibold whitespace-nowrap">
                                     <span className="flex items-center justify-end gap-1.5">
@@ -782,11 +905,11 @@ export default function SegmentationPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {moisRows.flatMap((row) => {
-                                const key = `${row.annee}-${String(row.mois).padStart(2, "0")}`;
+                              {periodeRows.flatMap((row) => {
+                                const key = row.key;
                                 const isOpen = expandedMois === key;
                                 const rowTotal = selectedIds.reduce((s, id) => {
-                                  const found = comparisonData[id]?.parMois.find((r) => r.annee === row.annee && r.mois === row.mois);
+                                  const found = getComparePeriodes(id).find((r) => r.key === key);
                                   return s + (found?.total ?? 0);
                                 }, 0);
                                 const result = [
@@ -802,7 +925,7 @@ export default function SegmentationPage() {
                                       </span>
                                     </td>
                                     {selectedCommercials.map((c, i) => {
-                                      const found = comparisonData[c.id]?.parMois.find((r) => r.annee === row.annee && r.mois === row.mois);
+                                      const found = getComparePeriodes(c.id).find((r) => r.key === key);
                                       return (
                                         <td key={c.id} className="px-4 py-2.5 text-right whitespace-nowrap">
                                           {found ? (
@@ -826,21 +949,18 @@ export default function SegmentationPage() {
                                           <BreakdownTable
                                             title="Par catégorie"
                                             dataKey="parCategorie"
-                                            mois={row.mois}
-                                            annee={row.annee}
+                                            rowKey={key}
                                             colorMap={BADGE_COLORS}
                                           />
                                           <BreakdownTable
                                             title="Par sous-catégorie"
                                             dataKey="parSousCategorie"
-                                            mois={row.mois}
-                                            annee={row.annee}
+                                            rowKey={key}
                                           />
                                           <BreakdownTable
                                             title="Par type client"
                                             dataKey="parType"
-                                            mois={row.mois}
-                                            annee={row.annee}
+                                            rowKey={key}
                                           />
                                         </div>
                                       </td>
@@ -854,7 +974,7 @@ export default function SegmentationPage() {
                               <tr>
                                 <td className="px-5 py-3 font-bold text-gray-700 text-xs uppercase">Total</td>
                                 {selectedCommercials.map((c) => {
-                                  const total = comparisonData[c.id]?.parMois.reduce((s, r) => s + r.total, 0) ?? 0;
+                                  const total = getComparePeriodes(c.id).reduce((s, r) => s + r.total, 0);
                                   return (
                                     <td key={c.id} className="px-4 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
                                       {fmt(total)}
@@ -862,7 +982,7 @@ export default function SegmentationPage() {
                                   );
                                 })}
                                 <td className="px-5 py-3 text-right font-bold text-gray-900 border-l border-gray-200">
-                                  {fmt(selectedIds.reduce((s, id) => s + (comparisonData[id]?.parMois.reduce((ss, r) => ss + r.total, 0) ?? 0), 0))}
+                                  {fmt(selectedIds.reduce((s, id) => s + getComparePeriodes(id).reduce((ss, r) => ss + r.total, 0), 0))}
                                 </td>
                               </tr>
                             </tfoot>
