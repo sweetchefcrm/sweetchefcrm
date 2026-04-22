@@ -9,15 +9,16 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
-  email     String    @unique
+  email     String     @unique
   password  String
   role      Role
   teamType  TeamType?
-  createdAt DateTime  @default(now())
+  createdAt DateTime   @default(now())
   clients   Client[]
   ventes    Vente[]
+  objectifs Objectif[]
 
   @@map("users")
 }
@@ -72,6 +73,21 @@ model Prospect {
   client       Client?  @relation(fields: [clientId], references: [id])
 
   @@map("prospects")
+}
+
+model Objectif {
+  id             String   @id @default(uuid())
+  commercialId   String
+  commercial     User     @relation(fields: [commercialId], references: [id])
+  mois           Int
+  annee          Int
+  montantCible   Decimal  @db.Decimal(10, 2)
+  tauxCroissance Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([commercialId, mois, annee])
+  @@map("objectifs")
 }
 
 model ImportLog {

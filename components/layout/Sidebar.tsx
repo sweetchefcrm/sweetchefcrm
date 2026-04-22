@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Building2,
   Map,
+  Target,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Role } from "@prisma/client";
@@ -67,6 +68,7 @@ const navItems = [
     icon: UsersRound,
     roles: [Role.ADMIN, Role.COMMERCIAL_PRINCIPAL, Role.CHEF_TERRAIN, Role.CHEF_TELEVENTE],
   },
+  { href: "/objectifs", label: "Objectifs", icon: Target, roles: [Role.ADMIN] },
   { href: "/admin", label: "Administration", icon: Settings, roles: [Role.ADMIN] },
 ];
 

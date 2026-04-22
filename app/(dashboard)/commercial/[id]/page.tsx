@@ -22,6 +22,7 @@ import {
   ArrowUpDown,
   Hash,
   X,
+  Target,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -205,6 +206,7 @@ export default function CommercialPage() {
   const [panelTitle, setPanelTitle] = useState("");
   const [panelClients, setPanelClients] = useState<PanelClient[]>([]);
   const [panelLoading, setPanelLoading] = useState(false);
+  const [objectif, setObjectif] = useState<{ montantCible: number; tauxCroissance: number | null } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -212,6 +214,11 @@ export default function CommercialPage() {
       .then((r) => r.json())
       .then(setData)
       .finally(() => setLoading(false));
+    // Charger l'objectif du mois
+    fetch(`/api/objectifs?commercialId=${id}&mois=${mois}&annee=${annee}`)
+      .then((r) => r.json())
+      .then((d) => setObjectif(d.objectif ?? null))
+      .catch(() => setObjectif(null));
   }, [id, mois, annee]);
 
   // Auto-navigation : si le mois courant n'a pas de données, aller au dernier mois avec données
@@ -590,6 +597,55 @@ export default function CommercialPage() {
               {stats.nbSansCommande} n'ont pas commandé
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Objectif du mois */}
+      {objectif && objectif.montantCible > 0 && stats && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-[#1E40AF]" />
+              <span className="text-sm font-semibold text-gray-800">
+                Objectif {MOIS_NOMS[mois - 1]} {annee}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-sm font-bold text-[#1E40AF]">
+                {formatCurrency(objectif.montantCible)}
+              </span>
+              {objectif.tauxCroissance !== null && (
+                <div className="text-[10px] text-gray-400">
+                  {objectif.tauxCroissance >= 0 ? "+" : ""}
+                  {objectif.tauxCroissance.toFixed(1)}% vs mois préc.
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Barre de progression CA vs objectif */}
+          {(() => {
+            const pct = Math.min(Math.round((stats.caMois / objectif.montantCible) * 100), 100);
+            const depasse = stats.caMois >= objectif.montantCible;
+            const couleur = depasse ? "bg-green-500" : pct >= 70 ? "bg-blue-500" : pct >= 40 ? "bg-amber-400" : "bg-red-400";
+            return (
+              <>
+                <div className="w-full bg-gray-100 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all duration-500 ${couleur}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">
+                    Réalisé : <strong className="text-gray-800">{formatCurrency(stats.caMois)}</strong>
+                  </span>
+                  <span className={`font-semibold ${depasse ? "text-green-600" : "text-gray-600"}`}>
+                    {depasse ? `Objectif atteint (+${formatCurrency(stats.caMois - objectif.montantCible)})` : `${pct}% atteint — manque ${formatCurrency(objectif.montantCible - stats.caMois)}`}
+                  </span>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
