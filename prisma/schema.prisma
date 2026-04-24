@@ -36,6 +36,7 @@ model Client {
   sousCategorie    String?
   categorieType    String?
   etagere          Boolean  @default(false)
+  lineaire         Float?
   dateCreation DateTime @default(now())
   ventes       Vente[]
   prospects    Prospect[]

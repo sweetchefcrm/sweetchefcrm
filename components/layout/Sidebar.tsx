@@ -18,6 +18,7 @@ import {
   Building2,
   Map,
   Target,
+  Ruler,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Role } from "@prisma/client";
@@ -67,6 +68,12 @@ const navItems = [
     label: "Commerciaux",
     icon: UsersRound,
     roles: [Role.ADMIN, Role.COMMERCIAL_PRINCIPAL, Role.CHEF_TERRAIN, Role.CHEF_TELEVENTE],
+  },
+  {
+    href: "/metrage",
+    label: "Métrage",
+    icon: Ruler,
+    roles: DASHBOARD_ROLES,
   },
   { href: "/objectifs", label: "Objectifs", icon: Target, roles: [Role.ADMIN] },
   { href: "/admin", label: "Administration", icon: Settings, roles: [Role.ADMIN] },
