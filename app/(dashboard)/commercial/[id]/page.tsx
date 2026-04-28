@@ -188,6 +188,10 @@ export default function CommercialPage() {
   const now = new Date();
   const [mois, setMois] = useState(now.getMonth() + 1);
   const [annee, setAnnee] = useState(now.getFullYear());
+  // Navigation max : 1 mois dans le futur (pour voir les objectifs à venir)
+  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const maxMois = nextMonthDate.getMonth() + 1;
+  const maxAnnee = nextMonthDate.getFullYear();
   const [data, setData] = useState<CommercialData | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -370,7 +374,7 @@ export default function CommercialPage() {
           <button
             onClick={() => naviguerMois(1)}
             className="p-1 rounded hover:bg-gray-100 transition-colors"
-            disabled={mois === now.getMonth() + 1 && annee === now.getFullYear()}
+            disabled={mois === maxMois && annee === maxAnnee}
           >
             <ChevronRight className="w-4 h-4 text-gray-600 disabled:opacity-30" />
           </button>

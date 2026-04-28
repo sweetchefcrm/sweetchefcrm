@@ -75,7 +75,7 @@ const navItems = [
     icon: Ruler,
     roles: DASHBOARD_ROLES,
   },
-  { href: "/objectifs", label: "Objectifs", icon: Target, roles: [Role.ADMIN] },
+  { href: "/objectifs", label: "Objectifs", icon: Target, roles: null },
   { href: "/admin", label: "Administration", icon: Settings, roles: [Role.ADMIN] },
 ];
 

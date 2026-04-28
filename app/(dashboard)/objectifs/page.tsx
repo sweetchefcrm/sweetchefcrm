@@ -23,7 +23,6 @@ import {
   Crosshair,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Role } from "@prisma/client";
 import {
   ComposedChart,
@@ -110,6 +109,7 @@ function daysInMonth(m: number, y: number) {
 
 function joursEcoules(mois: number, annee: number): number {
   const now = new Date();
+  if (annee > now.getFullYear() || (annee === now.getFullYear() && mois > now.getMonth() + 1)) return 0;
   if (annee === now.getFullYear() && mois === now.getMonth() + 1) return now.getDate();
   return daysInMonth(mois, annee);
 }
@@ -794,23 +794,156 @@ function CommercialPanel({
   );
 }
 
+// ─── Vue commerciale (lecture seule) ─────────────────────────────────────────
+
+function CommercialSelfView({ userId }: { userId: string }) {
+  const now = new Date();
+  const [mois, setMois] = useState(now.getMonth() + 1);
+  const [annee, setAnnee] = useState(now.getFullYear());
+  const [objectif, setObjectif] = useState<{ montantCible: number; tauxCroissance: number | null } | null>(null);
+  const [caMois, setCaMois] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const maxMois = nextMonthDate.getMonth() + 1;
+  const maxAnnee = nextMonthDate.getFullYear();
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/objectifs?commercialId=${userId}&mois=${mois}&annee=${annee}`).then((r) => r.json()),
+      fetch(`/api/commercial/${userId}?mois=${mois}&annee=${annee}`).then((r) => r.json()),
+    ])
+      .then(([objData, commData]) => {
+        setObjectif(objData.objectif ?? null);
+        setCaMois(commData.stats?.caMois ?? 0);
+      })
+      .catch(() => { setObjectif(null); setCaMois(0); })
+      .finally(() => setLoading(false));
+  }, [userId, mois, annee]);
+
+  function naviguerMois(delta: number) {
+    let m = mois + delta;
+    let a = annee;
+    if (m > 12) { m = 1; a++; }
+    if (m < 1) { m = 12; a--; }
+    setMois(m); setAnnee(a);
+  }
+
+  const moisLabel = `${MOIS_NOMS[mois - 1]} ${annee}`;
+  const jours = joursEcoules(mois, annee);
+  const joursTotaux = daysInMonth(mois, annee);
+  const caJour = jours > 0 ? caMois / jours : 0;
+  const projection = caJour * joursTotaux;
+  const objectifMontant = objectif?.montantCible ?? 0;
+  const pct = objectifMontant > 0 ? Math.min(Math.round((caMois / objectifMontant) * 100), 100) : 0;
+  const atteint = objectifMontant > 0 && caMois >= objectifMontant;
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Header title="Mon Objectif" subtitle={`Suivi mensuel — ${moisLabel}`} />
+          <Target className="w-5 h-5 text-[#1E40AF]" />
+        </div>
+        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 shadow-sm">
+          <button onClick={() => naviguerMois(-1)} className="p-1 rounded hover:bg-gray-100">
+            <ChevronLeft className="w-4 h-4 text-gray-600" />
+          </button>
+          <span className="text-sm font-semibold text-gray-800 w-36 text-center">{moisLabel}</span>
+          <button
+            onClick={() => naviguerMois(1)}
+            className="p-1 rounded hover:bg-gray-100 disabled:opacity-30"
+            disabled={mois === maxMois && annee === maxAnnee}
+          >
+            <ChevronRight className="w-4 h-4 text-gray-600" />
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="w-8 h-8 animate-spin text-[#1E40AF]" />
+        </div>
+      ) : !objectif ? (
+        <div className="max-w-lg bg-white rounded-xl border border-gray-200 p-10 text-center space-y-3">
+          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
+            <Target className="w-6 h-6 text-gray-400" />
+          </div>
+          <p className="text-sm font-semibold text-gray-600">Aucun objectif pour {moisLabel}</p>
+          <p className="text-xs text-gray-400">Votre responsable n'a pas encore fixé d'objectif pour ce mois.</p>
+        </div>
+      ) : (
+        <div className="max-w-xl space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <KPIStat label="Objectif mensuel" value={formatEur(objectifMontant)}
+              sub={`${MOIS_NOMS[mois - 1]} ${annee}`} icon={Target} color="blue" small />
+            <KPIStat label="CA réalisé" value={formatEur(caMois)}
+              sub={atteint ? "Objectif atteint ✓" : `${pct}% atteint`}
+              icon={Euro} color={atteint ? "green" : caMois > 0 ? "blue" : "gray"} small />
+            <KPIStat label="Moy. journalière" value={`${formatEur(Math.round(caJour))}/j`}
+              sub={jours > 0 ? `${jours} jours écoulés sur ${joursTotaux}` : "Mois non commencé"}
+              icon={CalendarDays} color="amber" small />
+            <KPIStat label="Projection fin mois" value={formatEur(Math.round(projection))}
+              sub={objectifMontant > 0
+                ? projection >= objectifMontant
+                  ? `+${formatEur(Math.round(projection - objectifMontant))} sur l'objectif`
+                  : `Manque ${formatEur(Math.round(objectifMontant - projection))}`
+                : `${joursTotaux} jours au total`}
+              icon={Crosshair} color={projection >= objectifMontant ? "green" : "red"} small />
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-semibold text-gray-700">Progression vers l'objectif</span>
+              <span className={`text-lg font-bold ${atteint ? "text-green-600" : "text-gray-800"}`}>{pct}%</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-4">
+              <div
+                className={`h-4 rounded-full transition-all duration-500 ${
+                  atteint ? "bg-green-500" : pct >= 70 ? "bg-blue-500" : pct >= 40 ? "bg-amber-400" : "bg-red-400"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Réalisé : <strong className="text-gray-700">{formatEur(caMois)}</strong></span>
+              {atteint ? (
+                <span className="text-green-600 font-semibold">Dépassé de {formatEur(caMois - objectifMontant)} ✓</span>
+              ) : (
+                <span>Manque : <strong className="text-gray-700">{formatEur(objectifMontant - caMois)}</strong></span>
+              )}
+            </div>
+          </div>
+
+          {objectif.tauxCroissance !== null && (
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-3 flex items-center justify-between">
+              <span className="text-sm text-gray-600">Évolution vs mois précédent</span>
+              <span className={`text-sm font-bold ${objectif.tauxCroissance >= 0 ? "text-green-600" : "text-red-500"}`}>
+                {objectif.tauxCroissance >= 0 ? "+" : ""}{objectif.tauxCroissance.toFixed(1)}%
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page principale ─────────────────────────────────────────────────────────
 
 export default function ObjectifsPage() {
   const { data: session, status } = useSession();
-  const router = useRouter();
   const now = new Date();
   const [mois, setMois] = useState(now.getMonth() + 1);
   const [annee, setAnnee] = useState(now.getFullYear());
+  // Navigation max : 1 mois dans le futur
+  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const maxMois = nextMonthDate.getMonth() + 1;
+  const maxAnnee = nextMonthDate.getFullYear();
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (status === "authenticated" && session?.user?.role !== Role.ADMIN) {
-      router.replace("/dashboard");
-    }
-  }, [status, session, router]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -859,10 +992,20 @@ export default function ObjectifsPage() {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-[#1E40AF]" /></div>;
   }
 
+  // Non-admin : vue lecture seule de ses propres objectifs
+  if (session?.user?.role !== Role.ADMIN) {
+    return <CommercialSelfView userId={session?.user?.id ?? "me"} />;
+  }
+
   const g = data?.global;
   const moisLabel = `${MOIS_NOMS[mois - 1]} ${annee}`;
   const moisPrevLabel = mois === 1 ? `Déc. ${annee - 1}` : MOIS_NOMS[mois - 2];
   const selectedCommercial = data?.commerciaux.find((c) => c.user.id === selectedId) ?? null;
+
+  // Projection totale des objectifs fixés par l'admin (mise à jour dynamique)
+  const totalObjectifs = data?.commerciaux.reduce((s, c) => s + (c.objectif?.montantCible ?? 0), 0) ?? 0;
+  const nbObjectifsDef = data?.commerciaux.filter((c) => c.objectif).length ?? 0;
+  const nbTotalComm = data?.commerciaux.length ?? 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -879,7 +1022,7 @@ export default function ObjectifsPage() {
           <span className="text-sm font-semibold text-gray-800 w-36 text-center">{moisLabel}</span>
           <button
             onClick={() => naviguerMois(1)} className="p-1 rounded hover:bg-gray-100"
-            disabled={mois === now.getMonth() + 1 && annee === now.getFullYear()}
+            disabled={mois === maxMois && annee === maxAnnee}
           >
             <ChevronRight className="w-4 h-4 text-gray-600 disabled:opacity-30" />
           </button>
@@ -894,7 +1037,7 @@ export default function ObjectifsPage() {
         <>
           {/* ── Section globale ─────────────────────────────── */}
           <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
               <KPIStat
                 label={`CA total — ${moisLabel}`}
                 value={formatEur(g!.caTotal)}
@@ -921,6 +1064,29 @@ export default function ObjectifsPage() {
                 sub="Régression 6 derniers mois"
                 icon={Crosshair} color="amber"
               />
+              {/* KPI dynamique : total des objectifs fixés par l'admin */}
+              <div className="bg-white rounded-xl border-2 border-blue-300 p-4 relative overflow-hidden">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                    <Target className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-xs text-gray-500 font-medium">Projection objectifs</span>
+                </div>
+                <p className="font-bold text-gray-900 text-lg">
+                  {totalObjectifs > 0 ? formatEur(totalObjectifs) : "—"}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {nbObjectifsDef}/{nbTotalComm} commerciaux configurés
+                </p>
+                {nbObjectifsDef > 0 && nbObjectifsDef < nbTotalComm && (
+                  <p className="text-[10px] text-amber-500 mt-1 font-medium">
+                    {nbTotalComm - nbObjectifsDef} sans objectif
+                  </p>
+                )}
+                {nbObjectifsDef === nbTotalComm && nbTotalComm > 0 && (
+                  <p className="text-[10px] text-green-600 mt-1 font-medium">Tous configurés ✓</p>
+                )}
+              </div>
             </div>
             {g!.histo.length > 0 && (
               <GlobalChart histo={g!.histo} prediction={g!.prediction} mois={mois} annee={annee} />
