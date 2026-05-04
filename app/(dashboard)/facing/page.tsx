@@ -86,13 +86,13 @@ export default function FacingPage() {
   }, [fetchData]);
 
   const isCommercialPur = role
-    ? [
+    ? ([
         Role.COMMERCIAL_TERRAIN,
         Role.COMMERCIAL_TELEVENTE,
         Role.COMMERCIAL_GRAND_COMPTE,
         Role.MERCHANDISEUR,
         Role.AUTRES,
-      ].includes(role)
+      ] as Role[]).includes(role)
     : false;
 
   return (
