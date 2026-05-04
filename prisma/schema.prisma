@@ -19,6 +19,7 @@ model User {
   clients   Client[]
   ventes    Vente[]
   objectifs Objectif[]
+  facings   Facing[]
 
   @@map("users")
 }
@@ -36,12 +37,27 @@ model Client {
   sousCategorie    String?
   categorieType    String?
   etagere          Boolean  @default(false)
-  lineaire         Float?
   dateCreation DateTime @default(now())
   ventes       Vente[]
   prospects    Prospect[]
+  facings      Facing[]
 
   @@map("clients")
+}
+
+model Facing {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  nbFacings Int
+  mois      DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, mois])
+  @@map("facings")
 }
 
 model Vente {

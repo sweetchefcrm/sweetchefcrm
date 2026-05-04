@@ -21,6 +21,7 @@
     "db:import-categories-mars": "ts-node --project tsconfig.scripts.json scripts/import-categories-mars.ts",
     "db:import-categories-mars1": "ts-node --project tsconfig.scripts.json scripts/import-categories-mars1.ts",
     "db:sync-users": "ts-node --project tsconfig.scripts.json scripts/sync-users-from-csv.ts",
+    "db:export-users": "ts-node --project tsconfig.scripts.json scripts/export-all-users.ts",
     "db:export-clients": "ts-node --project tsconfig.scripts.json scripts/export-clients.ts",
     "db:recategorize": "ts-node --project tsconfig.scripts.json scripts/recategorize-clients.ts",
     "db:planning": "ts-node --project tsconfig.scripts.json scripts/export-planning-commerciaux.ts",
