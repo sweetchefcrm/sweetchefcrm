@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
-const COMMERCIAL_ROLES = [
+const COMMERCIAL_ROLES: Role[] = [
   Role.COMMERCIAL_TERRAIN,
   Role.COMMERCIAL_TELEVENTE,
   Role.COMMERCIAL_GRAND_COMPTE,
