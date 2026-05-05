@@ -18,6 +18,7 @@ model User {
   createdAt DateTime   @default(now())
   clients   Client[]
   ventes    Vente[]
+  avoirs    Avoir[]
   objectifs Objectif[]
   facings   Facing[]
 
@@ -37,8 +38,10 @@ model Client {
   sousCategorie    String?
   categorieType    String?
   etagere          Boolean  @default(false)
+  aVisiter         Boolean  @default(false)
   dateCreation DateTime @default(now())
   ventes       Vente[]
+  avoirs       Avoir[]
   prospects    Prospect[]
   facings      Facing[]
 
@@ -75,6 +78,33 @@ model Vente {
 
   @@unique([clientId, dateVente, montant])
   @@map("ventes")
+}
+
+model Avoir {
+  id            String   @id @default(uuid())
+  clientId      String
+  commercialId  String
+  montant       Decimal  @db.Decimal(10, 2)
+  dateAvoir     DateTime
+  mois          Int
+  annee         Int
+  importBatchId String?
+  createdAt     DateTime @default(now())
+  client        Client   @relation(fields: [clientId], references: [id])
+  commercial    User     @relation(fields: [commercialId], references: [id])
+
+  @@map("avoirs")
+}
+
+model AvoirImportLog {
+  id           String       @id @default(uuid())
+  fileName     String
+  importedAt   DateTime     @default(now())
+  status       ImportStatus
+  rowsImported Int          @default(0)
+  errorMessage String?
+
+  @@map("avoir_import_logs")
 }
 
 model Prospect {

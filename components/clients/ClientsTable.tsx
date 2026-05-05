@@ -13,6 +13,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   Package,
+  MapPin,
 } from "lucide-react";
 import ClientEditModal from "./ClientEditModal";
 
@@ -27,6 +28,7 @@ export interface Client {
   sousCategorie?: string | null;
   categorieType?: string | null;
   etagere: boolean;
+  aVisiter: boolean;
   panierMoyen?: number;
   commercial: { id: string; name: string; role: string };
   ventes: { dateVente: string; montant: number }[];
@@ -41,6 +43,7 @@ interface ClientsTableProps {
   onPageChange: (p: number) => void;
   canEdit?: boolean;
   isAdmin?: boolean;
+  currentUserId?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   onSort?: (field: string) => void;
@@ -124,6 +127,10 @@ function SortableTh({
   );
 }
 
+function isStrategique(client: Client): boolean {
+  return !!(client.categorieStatut && client.categorieStatut.toLowerCase().includes("strat"));
+}
+
 export default function ClientsTable({
   clients,
   total,
@@ -132,6 +139,7 @@ export default function ClientsTable({
   onPageChange,
   canEdit = false,
   isAdmin = false,
+  currentUserId,
   sortBy,
   sortOrder,
   onSort,
@@ -139,6 +147,7 @@ export default function ClientsTable({
 }: ClientsTableProps) {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [togglingVisiteId, setTogglingVisiteId] = useState<string | null>(null);
 
   async function handleToggleEtagere(client: Client) {
     if (togglingId) return;
@@ -156,6 +165,29 @@ export default function ClientsTable({
     } finally {
       setTogglingId(null);
     }
+  }
+
+  async function handleToggleAVisiter(client: Client) {
+    if (togglingVisiteId) return;
+    setTogglingVisiteId(client.id);
+    try {
+      const res = await fetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aVisiter: !client.aVisiter }),
+      });
+      if (res.ok) {
+        const patch = await res.json();
+        onClientUpdated?.({ ...client, ...patch });
+      }
+    } finally {
+      setTogglingVisiteId(null);
+    }
+  }
+
+  function canToggleVisiter(client: Client): boolean {
+    if (!isStrategique(client)) return false;
+    return isAdmin || canEdit || client.commercial.id === currentUserId;
   }
 
   return (
@@ -176,6 +208,7 @@ export default function ClientsTable({
                 <SortableTh field="nbCommandes" label="Nb. cmds" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} className="text-right" />
                 <SortableTh field="panierMoyen" label="Panier moy." sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} className="text-right whitespace-nowrap" />
                 <SortableTh field="etagere" label="Étagère" sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} className="text-center" />
+                <th className="text-center px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">À visiter</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Statut</th>
                 {canEdit && <th className="px-4 py-3" />}
               </tr>
@@ -183,7 +216,7 @@ export default function ClientsTable({
             <tbody className="divide-y divide-gray-100">
               {clients.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 13 : 12} className="text-center py-8 text-gray-400">
+                  <td colSpan={canEdit ? 14 : 13} className="text-center py-8 text-gray-400">
                     Aucun client trouvé
                   </td>
                 </tr>
@@ -268,6 +301,35 @@ export default function ClientsTable({
                         <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${client.etagere ? "text-blue-600" : "text-gray-300"}`}>
                           <Package className="w-3 h-3" />
                           {client.etagere ? "Oui" : "Non"}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* À visiter — actif uniquement pour les stratégiques */}
+                    <td className="px-4 py-3 text-center">
+                      {canToggleVisiter(client) ? (
+                        <button
+                          onClick={() => handleToggleAVisiter(client)}
+                          disabled={togglingVisiteId === client.id}
+                          title={client.aVisiter ? "À visiter — cliquer pour retirer" : "Pas en visite — cliquer pour marquer"}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${
+                            client.aVisiter
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                              : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                          } ${togglingVisiteId === client.id ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
+                        >
+                          <MapPin className="w-3 h-3" />
+                          {client.aVisiter ? "Oui" : "Non"}
+                        </button>
+                      ) : (
+                        <span
+                          title={!isStrategique(client) ? "Uniquement pour les clients stratégiques" : undefined}
+                          className={`inline-flex items-center gap-1 text-[10px] font-medium ${
+                            client.aVisiter ? "text-emerald-400" : "text-gray-200"
+                          } cursor-not-allowed opacity-60`}
+                        >
+                          <MapPin className="w-3 h-3" />
+                          {client.aVisiter ? "Oui" : "Non"}
                         </span>
                       )}
                     </td>

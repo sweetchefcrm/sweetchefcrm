@@ -48,6 +48,7 @@ export default function ClientsPage() {
 
   // Filtres avancés
   const [etagereFilter, setEtagereFilter] = useState("");
+  const [aVisiterFilter, setAVisiterFilter] = useState("");
   const [villeFilter, setVilleFilter] = useState("");
   const [categorieStatutFilter, setCategorieStatutFilter] = useState("");
   const [sousCategorieFilter, setSousCategorieFilter] = useState("");
@@ -66,6 +67,7 @@ export default function ClientsPage() {
       sortBy,
       sortOrder,
       etagere: etagereFilter,
+      aVisiter: aVisiterFilter,
       ville: villeFilter,
       categorieStatut: categorieStatutFilter,
       sousCategorie: sousCategorieFilter,
@@ -76,7 +78,7 @@ export default function ClientsPage() {
     const json = await res.json();
     setData(json);
     setLoading(false);
-  }, [filter, search, page, sortBy, sortOrder, etagereFilter, villeFilter, categorieStatutFilter, sousCategorieFilter, categorieTypeFilter, commercialFilter]);
+  }, [filter, search, page, sortBy, sortOrder, etagereFilter, aVisiterFilter, villeFilter, categorieStatutFilter, sousCategorieFilter, categorieTypeFilter, commercialFilter]);
 
   useEffect(() => {
     const t = setTimeout(fetchClients, 300);
@@ -98,6 +100,7 @@ export default function ClientsPage() {
     setFilter("all");
     setSearch("");
     setEtagereFilter("");
+    setAVisiterFilter("");
     setVilleFilter("");
     setCategorieStatutFilter("");
     setSousCategorieFilter("");
@@ -128,6 +131,7 @@ export default function ClientsPage() {
         sortBy={sortBy}
         sortOrder={sortOrder}
         etagereFilter={etagereFilter}
+        aVisiterFilter={aVisiterFilter}
         villeFilter={villeFilter}
         categorieStatutFilter={categorieStatutFilter}
         sousCategorieFilter={sousCategorieFilter}
@@ -142,6 +146,7 @@ export default function ClientsPage() {
         onSortByChange={(f) => { setSortBy(f); resetPage(); }}
         onSortOrderToggle={() => { setSortOrder((o) => (o === "asc" ? "desc" : "asc")); resetPage(); }}
         onEtagereFilterChange={(v) => { setEtagereFilter(v); resetPage(); }}
+        onAVisiterFilterChange={(v) => { setAVisiterFilter(v); resetPage(); }}
         onVilleFilterChange={(v) => { setVilleFilter(v); resetPage(); }}
         onCategorieStatutChange={(v) => { setCategorieStatutFilter(v); resetPage(); }}
         onSousCategorieChange={(v) => { setSousCategorieFilter(v); resetPage(); }}
@@ -163,6 +168,7 @@ export default function ClientsPage() {
           onPageChange={setPage}
           canEdit={canEdit}
           isAdmin={isAdmin}
+          currentUserId={session?.user.id}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSort={handleSortBy}

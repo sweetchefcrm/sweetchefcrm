@@ -80,8 +80,8 @@ export async function GET(req: NextRequest) {
   const clientToCommercial = new Map(allClients.map((c) => [c.id, c.commercialId]));
   const allClientIds = allClients.map((c) => c.id);
 
-  // 3. Ventes du mois et du mois précédent via clientId (toutes ventes des clients assignés)
-  const [ventesMois, ventesPrev] = await Promise.all([
+  // 3. Ventes + avoirs du mois et du mois précédent via clientId
+  const [ventesMois, ventesPrev, avoirsMois, avoirsPrev] = await Promise.all([
     allClientIds.length > 0
       ? prisma.vente.findMany({
           where: { clientId: { in: allClientIds }, mois, annee },
@@ -94,6 +94,18 @@ export async function GET(req: NextRequest) {
           select: { clientId: true, montant: true },
         })
       : Promise.resolve([]),
+    allClientIds.length > 0
+      ? prisma.avoir.findMany({
+          where: { clientId: { in: allClientIds }, mois, annee },
+          select: { clientId: true, montant: true },
+        })
+      : Promise.resolve([]),
+    allClientIds.length > 0
+      ? prisma.avoir.findMany({
+          where: { clientId: { in: allClientIds }, mois: prevMois, annee: prevAnnee },
+          select: { clientId: true, montant: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   // Build maps
@@ -101,10 +113,21 @@ export async function GET(req: NextRequest) {
   const caPrecMap = new Map<string, number>();
   const commandesMap = new Map<string, Set<string>>(); // commercialId → set de clientIds
 
+  // Avoirs par client (mois courant et précédent)
+  const avoirsMoisByClient = new Map<string, number>();
+  const avoirsPrecByClient = new Map<string, number>();
+  for (const a of avoirsMois) {
+    avoirsMoisByClient.set(a.clientId, (avoirsMoisByClient.get(a.clientId) ?? 0) + Number(a.montant));
+  }
+  for (const a of avoirsPrev) {
+    avoirsPrecByClient.set(a.clientId, (avoirsPrecByClient.get(a.clientId) ?? 0) + Number(a.montant));
+  }
+
   for (const v of ventesMois) {
     const commercialId = clientToCommercial.get(v.clientId);
     if (!commercialId) continue;
-    caMoisMap.set(commercialId, (caMoisMap.get(commercialId) ?? 0) + Number(v.montant));
+    const net = Number(v.montant) - (avoirsMoisByClient.get(v.clientId) ?? 0);
+    caMoisMap.set(commercialId, (caMoisMap.get(commercialId) ?? 0) + net);
     if (!commandesMap.has(commercialId)) commandesMap.set(commercialId, new Set());
     commandesMap.get(commercialId)!.add(v.clientId);
   }
@@ -112,7 +135,8 @@ export async function GET(req: NextRequest) {
   for (const v of ventesPrev) {
     const commercialId = clientToCommercial.get(v.clientId);
     if (!commercialId) continue;
-    caPrecMap.set(commercialId, (caPrecMap.get(commercialId) ?? 0) + Number(v.montant));
+    const net = Number(v.montant) - (avoirsPrecByClient.get(v.clientId) ?? 0);
+    caPrecMap.set(commercialId, (caPrecMap.get(commercialId) ?? 0) + net);
   }
 
   const clientsActifsMap = new Map<string, number>();

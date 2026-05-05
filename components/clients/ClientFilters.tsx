@@ -46,6 +46,12 @@ const ETAGERE_OPTIONS = [
   { value: "non", label: "Sans étagère" },
 ];
 
+const A_VISITER_OPTIONS = [
+  { value: "", label: "Tous" },
+  { value: "oui", label: "À visiter" },
+  { value: "non", label: "Pas à visiter" },
+];
+
 interface Commercial { id: string; name: string; }
 
 interface ClientFiltersProps {
@@ -54,6 +60,7 @@ interface ClientFiltersProps {
   sortBy: string;
   sortOrder: "asc" | "desc";
   etagereFilter: string;
+  aVisiterFilter: string;
   villeFilter: string;
   categorieStatutFilter: string;
   sousCategorieFilter: string;
@@ -68,6 +75,7 @@ interface ClientFiltersProps {
   onSortByChange: (s: string) => void;
   onSortOrderToggle: () => void;
   onEtagereFilterChange: (v: string) => void;
+  onAVisiterFilterChange: (v: string) => void;
   onVilleFilterChange: (v: string) => void;
   onCategorieStatutChange: (v: string) => void;
   onSousCategorieChange: (v: string) => void;
@@ -82,6 +90,7 @@ export default function ClientFilters({
   sortBy,
   sortOrder,
   etagereFilter,
+  aVisiterFilter,
   villeFilter,
   categorieStatutFilter,
   sousCategorieFilter,
@@ -96,6 +105,7 @@ export default function ClientFilters({
   onSortByChange,
   onSortOrderToggle,
   onEtagereFilterChange,
+  onAVisiterFilterChange,
   onVilleFilterChange,
   onCategorieStatutChange,
   onSousCategorieChange,
@@ -105,9 +115,9 @@ export default function ClientFilters({
 }: ClientFiltersProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const hasAdvancedFilters = !!(villeFilter || categorieStatutFilter || sousCategorieFilter || categorieTypeFilter || etagereFilter || commercialFilter);
+  const hasAdvancedFilters = !!(villeFilter || categorieStatutFilter || sousCategorieFilter || categorieTypeFilter || etagereFilter || aVisiterFilter || commercialFilter);
 
-  const activeCount = [villeFilter, categorieStatutFilter, sousCategorieFilter, categorieTypeFilter, etagereFilter, commercialFilter]
+  const activeCount = [villeFilter, categorieStatutFilter, sousCategorieFilter, categorieTypeFilter, etagereFilter, aVisiterFilter, commercialFilter]
     .filter(Boolean).length;
 
   return (
@@ -284,6 +294,20 @@ export default function ClientFilters({
               </select>
             </div>
 
+            {/* À visiter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Visite terrain</label>
+              <select
+                value={aVisiterFilter}
+                onChange={(e) => onAVisiterFilterChange(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                {A_VISITER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Commercial */}
             {commerciaux.length > 0 && (
               <div>
@@ -336,6 +360,12 @@ export default function ClientFilters({
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
                   Étagère : {etagereFilter}
                   <button onClick={() => onEtagereFilterChange("")}><X className="w-3 h-3" /></button>
+                </span>
+              )}
+              {aVisiterFilter && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full">
+                  Visite : {aVisiterFilter === "oui" ? "À visiter" : "Pas à visiter"}
+                  <button onClick={() => onAVisiterFilterChange("")}><X className="w-3 h-3" /></button>
                 </span>
               )}
               {commercialFilter && (

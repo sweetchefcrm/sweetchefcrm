@@ -5,6 +5,16 @@ import Header from "@/components/layout/Header";
 import ImportLogs from "@/components/admin/ImportLogs";
 import { Users, Plus, Loader2, X, Pencil, RefreshCw, CheckCircle, Save, RotateCcw, AlertTriangle } from "lucide-react";
 import UserEditModal from "@/components/admin/UserEditModal";
+import AvoirImportSection from "@/components/admin/AvoirImportSection";
+
+interface AvoirImportLog {
+  id: string;
+  fileName: string;
+  importedAt: string;
+  status: "SUCCESS" | "ERROR";
+  rowsImported: number;
+  errorMessage?: string;
+}
 
 interface User {
   id: string;
@@ -48,7 +58,8 @@ const ROLES = [
 ];
 
 const TAB_LABELS: Record<string, string> = {
-  imports: "Imports Google Drive",
+  imports: "Imports factures",
+  avoirs: "Imports avoirs",
   users: "Utilisateurs",
   categorisation: "Catégorisation",
   planning: "Planning",
@@ -74,10 +85,11 @@ interface BackupMeta {
 
 export default function AdminPage() {
   const [logs, setLogs] = useState([]);
+  const [avoirLogs, setAvoirLogs] = useState<AvoirImportLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [planning, setPlanning] = useState<PlanningRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"imports" | "users" | "categorisation" | "planning" | "sauvegardes">("imports");
+  const [tab, setTab] = useState<"imports" | "avoirs" | "users" | "categorisation" | "planning" | "sauvegardes">("imports");
   const [recatLoading, setRecatLoading] = useState(false);
   const [recatResult, setRecatResult] = useState<{ total: number; byCategory: Record<string, number>; prospectsCreated: number } | null>(null);
   const [recatError, setRecatError] = useState("");
@@ -97,17 +109,20 @@ export default function AdminPage() {
 
   async function fetchData() {
     setLoading(true);
-    const [logsRes, usersRes, planningRes] = await Promise.all([
+    const [logsRes, avoirLogsRes, usersRes, planningRes] = await Promise.all([
       fetch("/api/admin/logs"),
+      fetch("/api/admin/avoirs"),
       fetch("/api/admin/users"),
       fetch("/api/planning"),
     ]);
-    const [logsData, usersData, planningData] = await Promise.all([
+    const [logsData, avoirLogsData, usersData, planningData] = await Promise.all([
       logsRes.json(),
+      avoirLogsRes.json(),
       usersRes.json(),
       planningRes.json(),
     ]);
     setLogs(logsData);
+    setAvoirLogs(Array.isArray(avoirLogsData) ? avoirLogsData : []);
     setUsers(usersData);
     setPlanning(Array.isArray(planningData) ? planningData : []);
     setLoading(false);
@@ -214,7 +229,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
-        {(["imports", "users", "categorisation", "planning", "sauvegardes"] as const).map((t) => (
+        {(["imports", "avoirs", "users", "categorisation", "planning", "sauvegardes"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -231,6 +246,10 @@ export default function AdminPage() {
 
       {tab === "imports" && (
         <ImportLogs logs={logs} onSync={fetchData} />
+      )}
+
+      {tab === "avoirs" && (
+        <AvoirImportSection logs={avoirLogs} onRefresh={fetchData} />
       )}
 
       {tab === "categorisation" && (

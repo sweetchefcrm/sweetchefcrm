@@ -33,16 +33,29 @@ export async function GET(request: Request) {
   );
 
   const venteFilter = clientIds.length > 0 ? { clientId: { in: clientIds } } : {};
+  const avoirFilter = clientIds.length > 0 ? { clientId: { in: clientIds } } : {};
 
   const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+
+  const sliding12Months = {
+    OR: [
+      { annee: currentYear - 1, mois: { gt: currentMonth } },
+      { annee: currentYear - 1, mois: currentMonth },
+      { annee: currentYear, mois: { lte: currentMonth } },
+    ],
+  };
 
   const [
     caCurrentMonth,
     caPrevMonth,
+    avoirCurrentMonth,
+    avoirPrevMonth,
     top10Clients,
+    avoirsParClientMois,
     panierMoyenGlobal,
     ventesMoisParClient,
     ventesAnneeParClient,
+    avoirsAnneeParClient,
     evolutionPanierMoyen,
     moisDisponibles,
   ] = await Promise.all([
@@ -54,12 +67,26 @@ export async function GET(request: Request) {
       where: { ...venteFilter, mois: prevMonth, annee: prevYear },
       _sum: { montant: true },
     }),
+    prisma.avoir.aggregate({
+      where: { ...avoirFilter, mois: currentMonth, annee: currentYear },
+      _sum: { montant: true },
+    }),
+    prisma.avoir.aggregate({
+      where: { ...avoirFilter, mois: prevMonth, annee: prevYear },
+      _sum: { montant: true },
+    }),
     prisma.vente.groupBy({
       by: ["clientId"],
       where: { ...venteFilter, mois: currentMonth, annee: currentYear },
       _sum: { montant: true },
       orderBy: { _sum: { montant: "desc" } },
-      take: 10,
+      take: 20, // prendre plus pour recalculer après déduction avoirs
+    }),
+    // Avoirs du mois par client (pour top10 net)
+    prisma.avoir.groupBy({
+      by: ["clientId"],
+      where: { ...avoirFilter, mois: currentMonth, annee: currentYear },
+      _sum: { montant: true },
     }),
     // Panier moyen global sur l'année sélectionnée
     prisma.vente.aggregate({
@@ -83,18 +110,16 @@ export async function GET(request: Request) {
       _avg: { montant: true },
       _count: { _all: true },
     }),
+    // Avoirs de l'année sélectionnée par client
+    prisma.avoir.groupBy({
+      by: ["clientId"],
+      where: { ...avoirFilter, annee: currentYear },
+      _sum: { montant: true },
+    }),
     // Évolution mensuelle du panier moyen (12 mois glissants depuis le mois sélectionné)
     prisma.vente.groupBy({
       by: ["mois", "annee"],
-      where: {
-        ...venteFilter,
-        OR: [
-          // 12 mois avant le mois sélectionné
-          { annee: currentYear - 1, mois: { gt: currentMonth } },
-          { annee: currentYear - 1, mois: currentMonth },
-          { annee: currentYear, mois: { lte: currentMonth } },
-        ],
-      },
+      where: { ...venteFilter, ...sliding12Months },
       _avg: { montant: true },
       _count: { _all: true },
       orderBy: [{ annee: "asc" }, { mois: "asc" }],
@@ -107,33 +132,52 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  // ── Enrichir top 10 clients ────────────────────────────────────────────────
-  const clientIdsTop = top10Clients.map((t) => t.clientId);
+  // ── Avoirs par client en maps ─────────────────────────────────────────────
+  const avoirsParClientMoisMap: Record<string, number> = {};
+  for (const a of avoirsParClientMois) {
+    avoirsParClientMoisMap[a.clientId] = Number(a._sum.montant || 0);
+  }
+  const avoirsAnneeParClientMap: Record<string, number> = {};
+  for (const a of avoirsAnneeParClient) {
+    avoirsAnneeParClientMap[a.clientId] = Number(a._sum.montant || 0);
+  }
+
+  // ── Enrichir top 10 clients (CA net = ventes - avoirs) ───────────────────
+  const top10Computed = top10Clients
+    .map((t) => ({
+      clientId: t.clientId,
+      ca: Math.max(0, Number(t._sum.montant || 0) - (avoirsParClientMoisMap[t.clientId] ?? 0)),
+    }))
+    .sort((a, b) => b.ca - a.ca)
+    .slice(0, 10);
+
+  const clientIdsTop = top10Computed.map((t) => t.clientId);
   const clientsInfo = await prisma.client.findMany({
     where: { id: { in: clientIdsTop } },
     select: { id: true, nom: true, codeClient: true },
   });
   const clientInfoMap = Object.fromEntries(clientsInfo.map((c) => [c.id, c]));
-  const top10 = top10Clients.map((t) => ({
+  const top10 = top10Computed.map((t) => ({
     ...clientInfoMap[t.clientId],
-    ca: Number(t._sum.montant || 0),
+    ca: t.ca,
   }));
 
-  // ── CA + panier moyen par commercial ─────────────────────────────────────
+  // ── CA net + panier moyen par commercial ─────────────────────────────────
   const caParCommercialMap: Record<string, number> = {};
   const panierMoyenMap: Record<string, { totalMontant: number; nbVentes: number }> = {};
 
   for (const v of ventesMoisParClient) {
     const commId = clientToCommercial[v.clientId];
     if (!commId) continue;
-    const ca = Number(v._sum.montant || 0);
+    const ca = Number(v._sum.montant || 0) - (avoirsParClientMoisMap[v.clientId] ?? 0);
     caParCommercialMap[commId] = (caParCommercialMap[commId] ?? 0) + ca;
   }
 
   for (const v of ventesAnneeParClient) {
     const commId = clientToCommercial[v.clientId];
     if (!commId) continue;
-    const total = Number(v._sum.montant || 0);
+    const avoirAnnee = avoirsAnneeParClientMap[v.clientId] ?? 0;
+    const total = Math.max(0, Number(v._sum.montant || 0) - avoirAnnee);
     const nb = v._count._all;
     if (!panierMoyenMap[commId]) panierMoyenMap[commId] = { totalMontant: 0, nbVentes: 0 };
     panierMoyenMap[commId].totalMontant += total;
@@ -178,8 +222,8 @@ export async function GET(request: Request) {
     else caParEquipe.AUTRE += c.ca;
   }
 
-  const caCurrent = Number(caCurrentMonth._sum.montant || 0);
-  const caPrev    = Number(caPrevMonth._sum.montant || 0);
+  const caCurrent = Number(caCurrentMonth._sum.montant || 0) - Number(avoirCurrentMonth._sum.montant || 0);
+  const caPrev    = Number(caPrevMonth._sum.montant || 0) - Number(avoirPrevMonth._sum.montant || 0);
   const variation = caPrev > 0 ? ((caCurrent - caPrev) / caPrev) * 100 : 0;
 
   return NextResponse.json({

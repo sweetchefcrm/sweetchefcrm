@@ -10,17 +10,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const role = session.user.role as Role;
-  if (!canAccess(role, PERMISSIONS.EDIT_DATA)) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
-  }
+  const hasEditData = canAccess(role, PERMISSIONS.EDIT_DATA);
 
   const { id } = await params;
 
   const client = await prisma.client.findUnique({
     where: { id },
-    include: { commercial: { select: { teamType: true } } },
+    include: { commercial: { select: { teamType: true, id: true } } },
   });
   if (!client) return NextResponse.json({ error: "Client introuvable" }, { status: 404 });
+
+  const isOwnClient = client.commercialId === session.user.id;
+  const body = await req.json();
+
+  // Les commerciaux (non EDIT_DATA) peuvent uniquement basculer aVisiter sur leurs propres clients
+  if (!hasEditData) {
+    if (!isOwnClient) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+    const bodyKeys = Object.keys(body);
+    if (bodyKeys.some((k) => k !== "aVisiter")) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  }
 
   // Les chefs ne peuvent modifier que les clients de leur équipe
   if (role === Role.CHEF_TERRAIN && client.commercial.teamType !== "TERRAIN") {
@@ -30,8 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const { nom, codePostal, telephone, categorieStatut, categorieType, actif, etagere, commercialId } = body;
+  const { nom, codePostal, telephone, categorieStatut, categorieType, actif, etagere, aVisiter, commercialId } = body;
 
   const data: Record<string, unknown> = {};
   if (nom !== undefined) data.nom = nom;
@@ -41,6 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (categorieType !== undefined) data.categorieType = categorieType || null;
   if (actif !== undefined) data.actif = actif;
   if (etagere !== undefined) data.etagere = etagere;
+  if (aVisiter !== undefined) data.aVisiter = aVisiter;
   // Seul l'admin peut changer le commercial
   if (commercialId !== undefined && role === Role.ADMIN) data.commercialId = commercialId;
 
